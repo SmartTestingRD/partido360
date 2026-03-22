@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Add a request interceptor to attach the JWT token to every request
 axios.interceptors.request.use((config) => {
