@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Perfil de Líder y Militantes</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#136dec",
+                        "primary-hover": "#105bc5",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101822",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        body {
+            min-height: 100vh;
+        }
+        @keyframes slide-up {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slide-up 0.3s ease-out forwards;
+        }
+        @media (min-width: 640px) {
+            .animate-slide-up {
+                animation: none;
+            }
+        }
+        .safe-area-bottom {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+        .progress-circle {
+             background: conic-gradient(var(--primary-color, #136dec) var(--progress, 0%), #e2e8f0 0%);
+        }
+        .dark .progress-circle {
+             background: conic-gradient(var(--primary-color, #136dec) var(--progress, 0%), #1e293b 0%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col md:flex-row antialiased">
+<nav class="hidden md:flex flex-col w-64 bg-white dark:bg-[#15202e] border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 z-30">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-2 text-primary font-bold text-xl">
+<span class="material-symbols-outlined">diversity_3</span>
+<span>CRM Político</span>
+</div>
+</div>
+<div class="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-medium">Personas</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-50 text-primary dark:bg-blue-900/20 dark:text-blue-400" href="#">
+<span class="material-symbols-outlined fill-1">groups</span>
+<span class="font-medium">Líderes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="font-medium">Territorio</span>
+</a>
+</div>
+<div class="p-4 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">Juan Director</p>
+<p class="text-xs text-slate-500 truncate">Admin</p>
+</div>
+</div>
+</div>
+</nav>
+<div class="flex-1 flex flex-col min-h-screen">
+<header class="sticky top-0 z-20 bg-white/90 dark:bg-[#15202e]/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 md:py-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<button class="md:hidden flex items-center justify-center p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="text-base md:text-xl font-bold text-center md:text-left truncate">Perfil de Líder</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="hidden md:flex items-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+<span>Editar Meta</span>
+</button>
+<button class="hidden md:flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+<span>Añadir Registro</span>
+</button>
+<button class="md:hidden flex items-center justify-center p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-primary font-medium">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<main class="flex-1 p-0 md:p-6 lg:p-8 overflow-y-auto w-full max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+<div class="w-full md:w-80 lg:w-96 flex-shrink-0">
+<div class="bg-white dark:bg-[#15202e] relative pb-6 pt-6 px-6 flex flex-col items-center border-b md:border border-slate-100 dark:border-slate-800 md:rounded-xl shadow-sm md:sticky md:top-6">
+<div class="relative group cursor-pointer mb-4">
+<div class="w-24 h-24 md:w-32 md:h-32 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-4 ring-white dark:ring-[#15202e] shadow-lg">
+<img alt="Leader portrait" class="w-full h-full object-cover" data-alt="Portrait of Maria Rodriguez" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHhHauaywGbkxeIzc8wAO-KYmepYEVtpfHYgqcH4pC9X7Kiv6Ni-FyK36rtdqwnTgtyVQtEllsZyDhJ8m6LTYwTgO0o89Z8Gk7S0-z311wlNEzNkw6idq-Z7bwUSiW5tNLA0TrAtVvHCishiCrcGSKjzE6dRug1qOOg3bgO2kiA_P9YtfOCm8cC2-uGsjUSfzIOaBNnYG51NcPY2l-5IWpLH8cxa5vfZxbb9X9XNZe45AQxtk4ocsOR-JCtL4rAJckgOD1Ie_BpA"/>
+</div>
+<div class="absolute bottom-1 right-1 bg-blue-500 border-2 border-white dark:border-[#15202e] w-8 h-8 rounded-full flex items-center justify-center" title="Líder Verificado">
+<span class="material-symbols-outlined text-white text-[18px]">verified</span>
+</div>
+</div>
+<h2 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mb-1 text-center">María Rodríguez</h2>
+<div class="flex flex-col items-center gap-2 mb-6 w-full">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                CABEZA DE LISTA
+                            </span>
+<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                                Activo
+                            </span>
+</div>
+<span class="text-xs text-slate-500 dark:text-slate-400">Desde Oct 2023</span>
+</div>
+<div class="w-full space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-3 text-sm">
+<div class="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+<span class="material-symbols-outlined text-[18px]">call</span>
+</div>
+<div class="flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400">Móvil</p>
+<p class="font-medium text-slate-900 dark:text-white">+57 300 123 4567</p>
+</div>
+</div>
+<div class="flex items-center gap-3 text-sm">
+<div class="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+</div>
+<div class="flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400">Email</p>
+<p class="font-medium text-slate-900 dark:text-white truncate">maria.rodriguez@email.com</p>
+</div>
+</div>
+<div class="flex items-center gap-3 text-sm">
+<div class="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+</div>
+<div class="flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400">Sector Asignado</p>
+<p class="font-medium text-slate-900 dark:text-white">Zona Norte - Barrio La Paz</p>
+</div>
+</div>
+</div>
+<div class="hidden md:block w-full mt-6 space-y-2">
+<button class="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-slate-400">map</span>
+                            Ver Territorio
+                        </button>
+<button class="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-slate-400">share</span>
+                            Compartir Reporte
+                        </button>
+</div>
+</div>
+</div>
+<div class="flex-1 w-full px-4 md:px-0 pb-24 md:pb-0 space-y-6">
+<section>
+<div class="bg-white dark:bg-[#15202e] rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-6 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10">
+<span class="material-symbols-outlined text-9xl">trending_up</span>
+</div>
+<div class="relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12">
+<div class="flex-shrink-0 relative">
+<div class="w-32 h-32 md:w-40 md:h-40 rounded-full progress-circle flex items-center justify-center relative shadow-inner" style="--progress: 80%;">
+<div class="w-28 h-28 md:w-36 md:h-36 bg-white dark:bg-[#15202e] rounded-full flex flex-col items-center justify-center shadow-sm">
+<span class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">80%</span>
+<span class="text-xs font-medium text-slate-500 uppercase">Completado</span>
+</div>
+</div>
+</div>
+<div class="flex-1 text-center md:text-left space-y-4">
+<div>
+<h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">Rendimiento de Captación</h3>
+<p class="text-sm text-slate-500 dark:text-slate-400">Progreso actual respecto a la meta establecida para este periodo.</p>
+</div>
+<div class="flex flex-wrap items-center justify-center md:justify-start gap-6">
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Registrados</p>
+<p class="text-2xl md:text-3xl font-bold text-primary">12 <span class="text-sm font-normal text-slate-400">/ 15</span></p>
+</div>
+<div class="w-px h-10 bg-slate-200 dark:bg-slate-700 hidden md:block"></div>
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Faltantes</p>
+<p class="text-2xl md:text-3xl font-bold text-slate-700 dark:text-slate-300">3</p>
+</div>
+<div class="w-px h-10 bg-slate-200 dark:bg-slate-700 hidden md:block"></div>
+<div>
+<p class="text-xs text-slate-500 uppercase tracking-wide mb-1">Efectividad</p>
+<div class="flex items-center gap-1 text-green-600 dark:text-green-400 font-bold text-lg">
+<span class="material-symbols-outlined text-sm">arrow_upward</span>
+<span>Alto</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="space-y-4">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+<h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">groups</span>
+                        Militantes Registrados
+                        <span class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs py-0.5 px-2 rounded-full ml-1">12</span>
+</h3>
+<div class="relative max-w-xs w-full">
+<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+<span class="text-slate-400 material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900/50 py-2 pl-10 text-sm placeholder:text-slate-400 focus:border-primary focus:ring-primary dark:text-white shadow-sm" placeholder="Buscar por nombre o cédula..." type="search"/>
+</div>
+</div>
+<div class="hidden md:block bg-white dark:bg-[#15202e] rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+<table class="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+<thead class="bg-slate-50 dark:bg-slate-800/50">
+<tr>
+<th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" scope="col">Nombre</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" scope="col">Sector</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" scope="col">Estado</th>
+<th class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" scope="col">Fecha Registro</th>
+<th class="px-6 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider" scope="col">Acciones</th>
+</tr>
+</thead>
+<tbody class="bg-white dark:bg-[#15202e] divide-y divide-slate-200 dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold">
+                                                AP
+                                            </div>
+<div class="ml-4">
+<div class="text-sm font-medium text-slate-900 dark:text-white">Ana Pérez</div>
+<div class="text-xs text-slate-500">CC: 1.022.333.444</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="text-sm text-slate-900 dark:text-white">Barrio La Paz</div>
+<div class="text-xs text-slate-500">Mesa 4</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/20 dark:text-green-400">Verificado</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                        12 Oct 2023
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-700 dark:text-pink-300 font-bold">
+                                                CR
+                                            </div>
+<div class="ml-4">
+<div class="text-sm font-medium text-slate-900 dark:text-white">Carlos Ruiz</div>
+<div class="text-xs text-slate-500">CC: 98.765.432</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="text-sm text-slate-900 dark:text-white">Barrio La Paz</div>
+<div class="text-xs text-slate-500">Mesa 4</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/20 dark:text-yellow-400">Pendiente</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                        15 Oct 2023
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+<img alt="Member" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsUlkzOTfy4vmClF1ZSAnTu_O8yeAaDA8mD3cHzdsFtxPHMCqsiorELV25rdEzk8zxDiQVBiFMii2TLtjb99f2puE9FJEv5kD_dfQ6k-SvhFFOqWeAEMkJWPpzbbJ_Z2x-oFTFUOvVSZT5rc7RKoVOl7n3tozMIewT6mSrMF5XqlvbMu2iRhnw7VUqFdp044u9eQDRY35Yj4IutKIZ7eJI_cApNbHQ7Sedn_7Y-IbNUCFGorBBbigNTTv3f9yjrdCqYGvYt_izPA"/>
+</div>
+<div class="ml-4">
+<div class="text-sm font-medium text-slate-900 dark:text-white">Jorge Mendez</div>
+<div class="text-xs text-slate-500">CC: 1.123.456.789</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="text-sm text-slate-900 dark:text-white">Barrio El Centro</div>
+<div class="text-xs text-slate-500">Mesa 1</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/20 dark:text-green-400">Verificado</span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
+                                        18 Oct 2023
+                                    </td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="md:hidden space-y-3">
+<div class="bg-white dark:bg-[#15202e] rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm">
+                                AP
+                            </div>
+<div>
+<h4 class="text-sm font-bold text-slate-900 dark:text-white">Ana Pérez</h4>
+<p class="text-xs text-slate-500">Barrio La Paz</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/20 dark:text-green-400">Verificado</span>
+<span class="text-[10px] text-slate-400">12 Oct</span>
+</div>
+</div>
+<div class="bg-white dark:bg-[#15202e] rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-700 dark:text-pink-300 font-bold text-sm">
+                                CR
+                            </div>
+<div>
+<h4 class="text-sm font-bold text-slate-900 dark:text-white">Carlos Ruiz</h4>
+<p class="text-xs text-slate-500">Barrio La Paz</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="inline-flex items-center rounded-full bg-yellow-50 px-2 py-0.5 text-[10px] font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20 dark:bg-yellow-900/20 dark:text-yellow-400">Pendiente</span>
+<span class="text-[10px] text-slate-400">15 Oct</span>
+</div>
+</div>
+<div class="bg-white dark:bg-[#15202e] rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 flex-shrink-0 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+<img alt="Member" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsUlkzOTfy4vmClF1ZSAnTu_O8yeAaDA8mD3cHzdsFtxPHMCqsiorELV25rdEzk8zxDiQVBiFMii2TLtjb99f2puE9FJEv5kD_dfQ6k-SvhFFOqWeAEMkJWPpzbbJ_Z2x-oFTFUOvVSZT5rc7RKoVOl7n3tozMIewT6mSrMF5XqlvbMu2iRhnw7VUqFdp044u9eQDRY35Yj4IutKIZ7eJI_cApNbHQ7Sedn_7Y-IbNUCFGorBBbigNTTv3f9yjrdCqYGvYt_izPA"/>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-900 dark:text-white">Jorge Mendez</h4>
+<p class="text-xs text-slate-500">Barrio El Centro</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/20 dark:text-green-400">Verificado</span>
+<span class="text-[10px] text-slate-400">18 Oct</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+<div class="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-10 safe-area-bottom">
+<div class="max-w-lg mx-auto grid grid-cols-2 gap-3">
+<button class="w-full flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-3 px-4 rounded-xl shadow-sm transition-all text-sm">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+<span>Editar Meta</span>
+</button>
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-primary/25 text-sm">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+<span>Añadir</span>
+</button>
+</div>
+</div>
+
+</body></html>

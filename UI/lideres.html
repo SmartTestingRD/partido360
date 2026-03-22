@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Administración de Líderes - SIGED360</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#2563EB", 
+                        secondary: "#EFF6FF", 
+                        "background-light": "#F3F4F6", 
+                        "background-dark": "#111827", 
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1F2937",
+                        "text-light": "#111827",
+                        "text-dark": "#F9FAFB",
+                        "border-light": "#E5E7EB",
+                        "border-dark": "#374151",
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }.no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }.no-scrollbar {
+          -ms-overflow-style: none;scrollbar-width: none;}
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-sans text-text-light dark:text-text-dark antialiased transition-colors duration-200">
+<div class="flex h-screen overflow-hidden">
+<aside class="hidden md:flex flex-col w-64 bg-card-light dark:bg-card-dark border-r border-border-light dark:border-border-dark flex-shrink-0">
+<div class="h-16 flex items-center px-6 border-b border-border-light dark:border-border-dark">
+<div class="flex items-center gap-2 font-bold text-xl text-primary">
+<span class="material-symbols-outlined text-3xl">diversity_3</span>
+<span>SIGED360</span>
+</div>
+</div>
+<nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-primary/10 text-primary rounded-lg transition-colors font-medium" href="#">
+<span class="material-symbols-outlined">supervisor_account</span>
+<span>Líderes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">person_add</span>
+<span>Captación</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">groups</span>
+<span>Militancia</span>
+</a>
+<div class="pt-4 mt-4 border-t border-border-light dark:border-border-dark">
+<p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Configuración</p>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">settings</span>
+<span>Ajustes</span>
+</a>
+</div>
+</nav>
+<div class="p-4 border-t border-border-light dark:border-border-dark">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md">
+                    JD
+                </div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-gray-900 dark:text-white truncate">Juan Director</p>
+<p class="text-xs text-gray-500 truncate">Admin Regional</p>
+</div>
+<button class="text-gray-400 hover:text-gray-600">
+<span class="material-symbols-outlined">logout</span>
+</button>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+<header class="md:hidden sticky top-0 z-50 bg-card-light dark:bg-card-dark border-b border-border-light dark:border-border-dark shadow-sm h-16 flex items-center justify-between px-4 flex-shrink-0">
+<div class="flex items-center gap-3">
+<button class="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="flex items-center gap-2 font-bold text-lg text-primary">
+<span class="material-symbols-outlined text-2xl">diversity_3</span>
+<span>SIGED360</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                JD
+            </div>
+</header>
+<main class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8">
+<div class="max-w-7xl mx-auto space-y-6">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<div class="hidden md:flex items-center text-sm text-gray-500 dark:text-gray-400 gap-2 mb-2">
+<span class="hover:text-primary cursor-pointer">Dashboard</span>
+<span class="material-symbols-outlined text-base">chevron_right</span>
+<span class="text-primary font-medium">Administración de Líderes</span>
+</div>
+<h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Administración de Líderes</h1>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Gestione el rendimiento y seguimiento de su estructura política.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-white dark:bg-card-dark border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+<span class="hidden sm:inline">Exportar</span>
+</button>
+<button class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm shadow-blue-500/30 transition-colors">
+<span class="material-symbols-outlined text-lg">add</span>
+<span>Nuevo Líder</span>
+</button>
+</div>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark p-4">
+<div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+<div class="flex flex-wrap gap-3 w-full md:w-auto">
+<div class="relative w-full md:w-64">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400 text-xl">search</span>
+</div>
+<input class="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-10 transition-shadow" placeholder="Buscar líder..." type="text"/>
+</div>
+<select class="block w-full md:w-40 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-10 transition-shadow">
+<option value="">Sector: Todos</option>
+<option value="norte">Zona Norte</option>
+<option value="sur">Zona Sur</option>
+<option value="centro">Centro</option>
+</select>
+<select class="block w-full md:w-40 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-10 transition-shadow">
+<option value="">Estado: Todos</option>
+<option value="activo">Activo</option>
+<option value="inactivo">Inactivo</option>
+<option value="pendiente">Pendiente</option>
+</select>
+<select class="block w-full md:w-40 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-10 transition-shadow">
+<option value="">Nivel: Todos</option>
+<option value="coordinador">Coordinador</option>
+<option value="enlace">Enlace</option>
+<option value="activista">Activista</option>
+</select>
+</div>
+<button class="text-sm text-gray-500 dark:text-gray-400 hover:text-primary font-medium flex items-center gap-1 whitespace-nowrap self-end md:self-center">
+<span class="material-symbols-outlined text-lg">filter_alt_off</span>
+                            Limpiar
+                        </button>
+</div>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden">
+<div class="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-sm">
+                                        MR
+                                    </div>
+<div>
+<h3 class="font-semibold text-gray-900 dark:text-white">María Rodriguez</h3>
+<p class="text-xs text-gray-500 dark:text-gray-400">Coordinador • Los Jardines</p>
+</div>
+</div>
+<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900">
+                                    Activo
+                                </span>
+</div>
+<div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+<span>Meta: <span class="font-medium">150</span></span>
+<span class="font-bold text-gray-900 dark:text-white">Registrados: 165</span>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-xs mb-1">
+<span class="text-gray-500 font-medium">Cumplimiento</span>
+<span class="text-green-600 font-bold">110%</span>
+</div>
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+<div class="bg-green-500 h-2 rounded-full" style="width: 100%"></div>
+</div>
+<div class="flex justify-end pt-1">
+<span class="flex items-center gap-1 text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+<span class="material-symbols-outlined text-[12px]">emoji_events</span>
+                                        Meta Superada
+                                    </span>
+</div>
+</div>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-sm">
+                                        JP
+                                    </div>
+<div>
+<h3 class="font-semibold text-gray-900 dark:text-white">Juan Pérez</h3>
+<p class="text-xs text-gray-500 dark:text-gray-400">Enlace • Zona Norte</p>
+</div>
+</div>
+<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900">
+                                    Activo
+                                </span>
+</div>
+<div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+<span>Meta: <span class="font-medium">100</span></span>
+<span class="font-bold text-gray-900 dark:text-white">Registrados: 45</span>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-xs mb-1">
+<span class="text-gray-500 font-medium">Cumplimiento</span>
+<span class="text-blue-600 font-bold">45%</span>
+</div>
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+<div class="bg-blue-500 h-2 rounded-full" style="width: 45%"></div>
+</div>
+</div>
+</div>
+<div class="p-4 space-y-3 animate-pulse">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+<div class="space-y-2">
+<div class="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+<div class="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+</div>
+</div>
+<div class="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+</div>
+<div class="flex justify-between">
+<div class="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+<div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+</div>
+<div class="space-y-1">
+<div class="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+</div>
+</div>
+</div>
+<div class="hidden md:block overflow-x-auto">
+<table class="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+<thead class="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">
+<tr>
+<th class="px-6 py-4" scope="col">Líder</th>
+<th class="px-6 py-4" scope="col">Teléfono</th>
+<th class="px-6 py-4" scope="col">Sector</th>
+<th class="px-6 py-4 text-center" scope="col">Meta</th>
+<th class="px-6 py-4 text-center cursor-pointer group hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" scope="col">
+<div class="flex items-center justify-center gap-1 text-primary">
+                                            Registrados
+                                            <span class="material-symbols-outlined text-sm">arrow_downward</span>
+</div>
+</th>
+<th class="px-6 py-4 w-48" scope="col">% Cumplimiento</th>
+<th class="px-6 py-4" scope="col">Estado</th>
+<th class="px-6 py-4 text-right" scope="col">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xs">
+                                                MR
+                                            </div>
+<div>
+<div class="font-medium text-gray-900 dark:text-white">María Rodriguez</div>
+<div class="text-xs text-gray-500">Coordinador</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">809-555-0123</td>
+<td class="px-6 py-4 whitespace-nowrap">Los Jardines</td>
+<td class="px-6 py-4 text-center font-medium">150</td>
+<td class="px-6 py-4 text-center font-bold text-gray-900 dark:text-white">165</td>
+<td class="px-6 py-4 align-middle">
+<div class="w-full flex items-center gap-2">
+<div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+<div class="bg-green-500 h-2 rounded-full" style="width: 100%"></div>
+</div>
+<span class="text-xs font-bold text-green-600">110%</span>
+</div>
+<div class="mt-1 flex justify-start">
+<span class="flex items-center gap-0.5 text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+<span class="material-symbols-outlined text-[12px]">emoji_events</span>
+                                                Superada
+                                            </span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900">
+                                            Activo
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="text-gray-400 hover:text-primary transition-colors ml-2">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="h-9 w-9 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs">
+                                                JP
+                                            </div>
+<div>
+<div class="font-medium text-gray-900 dark:text-white">Juan Pérez</div>
+<div class="text-xs text-gray-500">Enlace</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">829-555-4567</td>
+<td class="px-6 py-4 whitespace-nowrap">Zona Norte</td>
+<td class="px-6 py-4 text-center font-medium">100</td>
+<td class="px-6 py-4 text-center font-bold text-gray-900 dark:text-white">45</td>
+<td class="px-6 py-4 align-middle">
+<div class="w-full flex items-center gap-2">
+<div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+<div class="bg-blue-500 h-2 rounded-full" style="width: 45%"></div>
+</div>
+<span class="text-xs font-bold text-blue-600">45%</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-900">
+                                            Activo
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="text-gray-400 hover:text-primary transition-colors ml-2">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center font-bold text-xs">
+                                                CD
+                                            </div>
+<div>
+<div class="font-medium text-gray-900 dark:text-white">Carlos Díaz</div>
+<div class="text-xs text-gray-500">Activista</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">809-555-8899</td>
+<td class="px-6 py-4 whitespace-nowrap">Ensanche Luperón</td>
+<td class="px-6 py-4 text-center font-medium">50</td>
+<td class="px-6 py-4 text-center font-bold text-gray-900 dark:text-white">5</td>
+<td class="px-6 py-4 align-middle">
+<div class="w-full flex items-center gap-2">
+<div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+<div class="bg-red-500 h-2 rounded-full" style="width: 10%"></div>
+</div>
+<span class="text-xs font-bold text-red-600">10%</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-900">
+                                            Pendiente
+                                        </span>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+<button class="text-gray-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+<button class="text-gray-400 hover:text-primary transition-colors ml-2">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="animate-pulse">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-9 w-9 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+<div class="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+</div>
+</td>
+<td class="px-6 py-4"><div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div></td>
+<td class="px-6 py-4"><div class="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div></td>
+<td class="px-6 py-4"><div class="h-4 w-10 mx-auto bg-gray-200 dark:bg-gray-700 rounded"></div></td>
+<td class="px-6 py-4"><div class="h-4 w-10 mx-auto bg-gray-200 dark:bg-gray-700 rounded"></div></td>
+<td class="px-6 py-4"><div class="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full"></div></td>
+<td class="px-6 py-4"><div class="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full"></div></td>
+<td class="px-6 py-4 text-right"><div class="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded inline-block"></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="hidden flex-col items-center justify-center py-16 bg-card-light dark:bg-card-dark rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+<div class="h-20 w-20 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-4xl text-gray-300 dark:text-gray-600">search_off</span>
+</div>
+<h3 class="text-lg font-medium text-gray-900 dark:text-white">No se encontraron líderes</h3>
+<p class="text-gray-500 dark:text-gray-400 text-sm mt-1 max-w-sm text-center">Intente ajustar los filtros de búsqueda o registre un nuevo líder en el sistema.</p>
+<button class="mt-5 text-primary hover:text-blue-700 font-medium text-sm flex items-center gap-1">
+                        Limpiar filtros
+                        <span class="material-symbols-outlined text-lg">refresh</span>
+</button>
+</div>
+<div class="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4 px-1">
+<p class="text-sm text-gray-500 dark:text-gray-400">
+                        Mostrando <span class="font-medium text-gray-900 dark:text-white">1</span> a <span class="font-medium text-gray-900 dark:text-white">10</span> de <span class="font-medium text-gray-900 dark:text-white">45</span> resultados
+                    </p>
+<div class="flex items-center gap-2">
+<button class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50" disabled="">
+                            Anterior
+                        </button>
+<button class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-card-dark shadow-sm">
+                            Siguiente
+                        </button>
+</div>
+</div>
+</div>
+<div class="h-10"></div>
+</main>
+</div>
+</div>
+
+</body></html>

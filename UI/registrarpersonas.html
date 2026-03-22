@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Registrar Persona - SIGED360</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#2563EB", 
+                        secondary: "#EFF6FF", 
+                        "background-light": "#F3F4F6", 
+                        "background-dark": "#111827", 
+                        "card-light": "#FFFFFF",
+                        "card-dark": "#1F2937",
+                        "text-light": "#111827",
+                        "text-dark": "#F9FAFB",
+                        "border-light": "#E5E7EB",
+                        "border-dark": "#374151",
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+                    }
+                },
+            },
+        };
+    </script>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-sans text-text-light dark:text-text-dark antialiased transition-colors duration-200">
+<div class="flex h-screen overflow-hidden">
+<aside class="hidden md:flex flex-col w-64 bg-card-light dark:bg-card-dark border-r border-border-light dark:border-border-dark">
+<div class="h-16 flex items-center px-6 border-b border-border-light dark:border-border-dark">
+<div class="flex items-center gap-2 font-bold text-xl text-primary">
+<span class="material-symbols-outlined text-3xl">diversity_3</span>
+<span>SIGED360</span>
+</div>
+</div>
+<nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-primary/10 text-primary rounded-lg transition-colors font-medium" href="#">
+<span class="material-symbols-outlined">person_add</span>
+<span>Captación</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">groups</span>
+<span>Militancia</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">map</span>
+<span>Territorio</span>
+</a>
+<div class="pt-4 mt-4 border-t border-border-light dark:border-border-dark">
+<p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Configuración</p>
+<a class="flex items-center gap-3 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">settings</span>
+<span>Ajustes</span>
+</a>
+</div>
+</nav>
+<div class="p-4 border-t border-border-light dark:border-border-dark">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md">
+                        JD
+                    </div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-gray-900 dark:text-white truncate">Juan Director</p>
+<p class="text-xs text-gray-500 truncate">Admin Regional</p>
+</div>
+<button class="text-gray-400 hover:text-gray-600">
+<span class="material-symbols-outlined">logout</span>
+</button>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col h-full overflow-hidden relative">
+<header class="md:hidden sticky top-0 z-50 bg-card-light dark:bg-card-dark border-b border-border-light dark:border-border-dark shadow-sm h-16 flex items-center justify-between px-4">
+<div class="flex items-center gap-3">
+<button class="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<div class="flex items-center gap-2 font-bold text-lg text-primary">
+<span class="material-symbols-outlined text-2xl">diversity_3</span>
+<span>SIGED360</span>
+</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                    JD
+                </div>
+</header>
+<main class="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8">
+<div class="max-w-7xl mx-auto">
+<div class="mb-6 md:mb-8">
+<div class="hidden md:flex items-center text-sm text-gray-500 dark:text-gray-400 gap-2 mb-2">
+<span class="hover:text-primary cursor-pointer">Dashboard</span>
+<span class="material-symbols-outlined text-base">chevron_right</span>
+<span class="hover:text-primary cursor-pointer">Captaciones</span>
+<span class="material-symbols-outlined text-base">chevron_right</span>
+<span class="text-primary font-medium">Nueva Persona</span>
+</div>
+<h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Registrar Persona</h1>
+<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ingrese los datos del nuevo ciudadano al sistema CRM.</p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+<div class="lg:col-span-8">
+<form class="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full">
+<div class="px-6 py-4 border-b border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+<h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">feed</span>
+                                        Formulario de Registro
+                                    </h2>
+<span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800">Borrador</span>
+</div>
+<div class="p-6 space-y-6 flex-1">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="nombres">
+                                                Nombres <span class="text-red-500">*</span>
+</label>
+<div class="relative rounded-md shadow-sm group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">person</span>
+</div>
+<input class="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="nombres" name="nombres" placeholder="Ej. Juan Carlos" required="" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="apellidos">
+                                                Apellidos <span class="text-red-500">*</span>
+</label>
+<input class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow px-3" id="apellidos" name="apellidos" placeholder="Ej. Pérez Rodríguez" required="" type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 flex justify-between" for="cedula">
+<span>Cédula</span>
+<span class="text-xs text-gray-400 font-normal bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Opcional</span>
+</label>
+<div class="relative rounded-md shadow-sm group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">fingerprint</span>
+</div>
+<input class="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="cedula" name="cedula" placeholder="000-0000000-0" type="text"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="telefono">
+                                                Teléfono <span class="text-red-500">*</span>
+</label>
+<div class="relative rounded-md shadow-sm group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">smartphone</span>
+</div>
+<input class="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="telefono" name="telefono" placeholder="809-000-0000" required="" type="tel"/>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 flex justify-between" for="email">
+<span>Correo Electrónico</span>
+<span class="text-xs text-gray-400 font-normal bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Opcional</span>
+</label>
+<div class="relative rounded-md shadow-sm group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">mail</span>
+</div>
+<input class="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="email" name="email" placeholder="usuario@ejemplo.com" type="email"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="sector">
+                                                Sector / Zona <span class="text-red-500">*</span>
+</label>
+<div class="relative rounded-md shadow-sm">
+<select class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="sector" name="sector" required="">
+<option disabled="" selected="" value="">Seleccionar Sector...</option>
+<option>Zona Norte - A1</option>
+<option>Los Jardines</option>
+<option>Centro Ciudad</option>
+<option>Ensanche Luperón</option>
+</select>
+</div>
+</div>
+</div>
+<div class="border-t border-dashed border-gray-200 dark:border-gray-700 my-2"></div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="lider">
+                                                Líder Responsable
+                                            </label>
+<select class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="lider" name="lider">
+<option>Asignar Automáticamente</option>
+<option>María Rodriguez</option>
+<option>Juan Pérez</option>
+<option>Carlos Díaz</option>
+</select>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="fuente">
+                                                Fuente de Captación
+                                            </label>
+<select class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow" id="fuente" name="fuente">
+<option value="visita">Visita Casa a Casa</option>
+<option value="evento">Evento Político</option>
+<option value="referido">Referido</option>
+<option value="redes">Redes Sociales</option>
+</select>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="notas">
+                                            Notas Adicionales
+                                        </label>
+<textarea class="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm transition-shadow p-3" id="notas" name="notas" placeholder="Detalles sobre la interacción, necesidades específicas, etc." rows="3"></textarea>
+</div>
+</div>
+<div class="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-border-light dark:border-border-dark flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+<button class="w-full sm:w-auto px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 dark:focus:ring-gray-700 transition-colors" type="button">
+                                        Limpiar
+                                    </button>
+<button class="w-full sm:w-auto px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors flex items-center justify-center gap-2 group disabled:opacity-75 disabled:cursor-wait" type="button">
+<span class="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">save</span>
+<span>Guardar</span>
+<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+<path class="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"></path>
+</svg>
+</button>
+</div>
+</form>
+</div>
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800 p-4 flex gap-4">
+<span class="material-symbols-outlined text-primary mt-1">info</span>
+<div>
+<h4 class="text-sm font-bold text-primary mb-1">Verificación Electoral</h4>
+<p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                                        Verifique la cédula en el padrón electoral antes de guardar si el votante dice estar inscrito.
+                                    </p>
+</div>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark p-5 sticky top-6">
+<div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+<h3 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Último Registro</h3>
+<span class="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+<span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+                                        Exitoso
+                                    </span>
+</div>
+<div class="flex items-center gap-4 mb-6">
+<div class="h-14 w-14 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-xl shadow-inner border border-purple-200 dark:border-purple-800">
+                                        AG
+                                    </div>
+<div class="flex-1">
+<p class="text-lg font-bold text-gray-900 dark:text-white leading-tight">Ana Gómez</p>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                                            Hace 5 minutos
+                                        </p>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+<div class="p-2 bg-white dark:bg-gray-700 rounded-md shadow-sm">
+<span class="material-symbols-outlined text-gray-500 dark:text-gray-300 text-sm">call</span>
+</div>
+<div>
+<p class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Teléfono</p>
+<p class="text-sm font-semibold text-gray-800 dark:text-gray-200">829-555-0199</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+<div class="p-2 bg-white dark:bg-gray-700 rounded-md shadow-sm">
+<span class="material-symbols-outlined text-gray-500 dark:text-gray-300 text-sm">person_pin</span>
+</div>
+<div>
+<p class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Líder Asignado</p>
+<p class="text-sm font-semibold text-gray-800 dark:text-gray-200">María Rodriguez</p>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+<div class="p-2 bg-white dark:bg-gray-700 rounded-md shadow-sm">
+<span class="material-symbols-outlined text-gray-500 dark:text-gray-300 text-sm">location_on</span>
+</div>
+<div>
+<p class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Sector</p>
+<p class="text-sm font-semibold text-gray-800 dark:text-gray-200">Los Jardines</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-6 py-2.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 group">
+<span>Ver perfil completo</span>
+<span class="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="h-10"></div> 
+</main>
+</div>
+</div>
+
+</body></html>

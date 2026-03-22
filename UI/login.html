@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login de Acceso CRM</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#136dec",
+                        "primary-hover": "#105bc5",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101822",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        body {
+            min-height: 100vh;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col md:flex-row antialiased">
+<div class="flex-1 flex min-h-screen">
+<div class="w-full md:w-1/2 lg:w-5/12 xl:w-1/3 bg-white dark:bg-[#15202e] flex flex-col justify-center px-6 py-12 lg:px-12 shadow-xl z-10 border-r border-slate-200 dark:border-slate-800">
+<div class="sm:mx-auto sm:w-full sm:max-w-md">
+<div class="flex items-center justify-center gap-3 text-primary mb-8">
+<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+<span class="material-symbols-outlined text-4xl">diversity_3</span>
+</div>
+</div>
+<h2 class="text-center text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    Bienvenido al CRM Político
+                </h2>
+<p class="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
+                    Ingresa tus credenciales para acceder a la plataforma de gestión.
+                </p>
+</div>
+<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-[480px]">
+<form action="#" class="space-y-6" method="POST">
+<div>
+<label class="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200" for="email">
+                            Correo Electrónico
+                        </label>
+<div class="relative mt-2 rounded-md shadow-sm">
+<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+<span class="material-symbols-outlined text-slate-400 text-[20px]">mail</span>
+</div>
+<input autocomplete="email" class="block w-full rounded-lg border-0 py-3 pl-10 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary dark:bg-slate-900/50 dark:ring-slate-700 dark:text-white sm:text-sm sm:leading-6" id="email" name="email" placeholder="ejemplo@organizacion.com" required="" type="email"/>
+</div>
+</div>
+<div>
+<label class="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200" for="password">
+                            Contraseña
+                        </label>
+<div class="relative mt-2 rounded-md shadow-sm">
+<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+<span class="material-symbols-outlined text-slate-400 text-[20px]">lock</span>
+</div>
+<input autocomplete="current-password" class="block w-full rounded-lg border-0 py-3 pl-10 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary dark:bg-slate-900/50 dark:ring-slate-700 dark:text-white sm:text-sm sm:leading-6" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+<div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer">
+<span class="material-symbols-outlined text-slate-400 text-[20px]">visibility</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center">
+<input class="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:ring-offset-slate-900" id="remember-me" name="remember-me" type="checkbox"/>
+<label class="ml-2 block text-sm text-slate-700 dark:text-slate-300" for="remember-me">Recordarme</label>
+</div>
+<div class="text-sm">
+<a class="font-semibold text-primary hover:text-primary-hover" href="#">¿Olvidaste tu contraseña?</a>
+</div>
+</div>
+<div>
+<button class="flex w-full justify-center rounded-lg bg-primary px-3 py-3 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-all active:scale-[0.99]" type="submit">
+                            Iniciar Sesión
+                        </button>
+</div>
+</form>
+<div class="mt-10">
+<div class="relative">
+<div aria-hidden="true" class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+</div>
+<div class="relative flex justify-center text-sm font-medium leading-6">
+<span class="bg-white dark:bg-[#15202e] px-6 text-slate-500 dark:text-slate-400">O continuar con</span>
+</div>
+</div>
+<div class="mt-6 grid grid-cols-2 gap-4">
+<a class="flex w-full items-center justify-center gap-3 rounded-lg bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold text-slate-900 dark:text-white shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 focus-visible:ring-transparent transition-colors" href="#">
+<svg aria-hidden="true" class="h-5 w-5" viewBox="0 0 24 24">
+<path d="M12.0003 20.45c4.6667 0 8.45-3.7833 8.45-8.45 0-4.6667-3.7833-8.45-8.45-8.45-4.6667 0-8.45 3.7833-8.45 8.45 0 4.6667 3.7833 8.45 8.45 8.45Z" fill="#fff"></path>
+<path d="M20.45 12c0-4.6667-3.7833-8.45-8.45-8.45-4.6667 0-8.45 3.7833-8.45 8.45 0 4.6667 3.7833 8.45 8.45 8.45 4.6667 0 8.45-3.7833 8.45-8.45Z" fill="none" stroke="#AAB8C2" stroke-miterlimit="10"></path>
+<path d="M20.15 10.7417h-8.15v2.5166h4.7583c-.25 1.15-1 2.1333-2.125 2.7667v2.1083h3.35c2.05-1.8917 3.1667-4.6917 3.1667-7.3917 0-.525-.05-1.0416-.1-1.5416Z" fill="#4285F4"></path>
+<path d="M12 18.9c2.2083 0 4.0667-.7333 5.425-1.9917l-3.35-2.6083c-.7667.5167-1.7667.85-2.075.85-2.225 0-4.1083-1.5-4.7833-3.525h-3.4v2.6417c1.725 3.425 5.275 5.775 9.1833 5.775Z" fill="#34A853"></path>
+<path d="M7.2167 11.625c-.175-.525-.275-1.0917-.275-1.675s.1-1.15.275-1.675v-2.6417h-3.4c-.7 1.3917-1.1 2.975-1.1 4.65s.4 3.2583 1.1 4.65l3.4-2.6417Z" fill="#FBBC05"></path>
+<path d="M12 5.1c1.2667 0 2.3917.4333 3.275 1.2833l2.4583-2.4583c-1.65-1.5416-3.7916-2.3666-5.7333-2.3666-3.9083 0-7.4583 2.35-9.1833 5.775l3.4 2.6416c.675-2.025 2.5583-3.525 4.7833-3.525Z" fill="#EA4335"></path>
+</svg>
+<span class="text-sm font-semibold leading-6">Google</span>
+</a>
+<a class="flex w-full items-center justify-center gap-3 rounded-lg bg-[#1877F2] px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1864F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1877F2] transition-colors" href="#">
+<svg aria-hidden="true" class="h-5 w-5 fill-current" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M20 10c0-5.523-4.477-10-10-10S0 4.477 0 10c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V10h2.54V7.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V10h2.773l-.443 2.89h-2.33v6.988C16.343 19.128 20 14.991 20 10z" fill-rule="evenodd"></path>
+</svg>
+<span class="text-sm font-semibold leading-6">Facebook</span>
+</a>
+</div>
+</div>
+<div class="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
+<p>© 2024 CRM Político. Todos los derechos reservados.</p>
+</div>
+</div>
+</div>
+<div class="hidden md:block relative w-0 flex-1 bg-slate-50 dark:bg-[#0f151b]">
+<div class="absolute inset-0 h-full w-full object-cover">
+<div class="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-900 opacity-90"></div>
+<svg class="absolute inset-0 h-full w-full opacity-10" height="100%" width="100%">
+<defs>
+<pattern height="40" id="grid-pattern" patternUnits="userSpaceOnUse" width="40">
+<path class="text-white" d="M0 40L40 0H20L0 20M40 40V20L20 40" fill="none" stroke="currentColor" stroke-width="1"></path>
+</pattern>
+</defs>
+<rect fill="url(#grid-pattern)" height="100%" width="100%"></rect>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center p-12 text-center text-white z-10">
+<div class="max-w-xl space-y-8">
+<div class="w-24 h-24 mx-auto bg-white/10 backdrop-blur-lg rounded-full flex items-center justify-center border border-white/20 shadow-2xl">
+<span class="material-symbols-outlined text-6xl text-white">how_to_vote</span>
+</div>
+<div>
+<h1 class="text-4xl lg:text-5xl font-bold mb-4">Liderazgo y Gestión Territorial</h1>
+<p class="text-lg text-blue-100 font-light">
+                                "La herramienta integral para organizar equipos, seguir metas y consolidar el apoyo ciudadano en tiempo real."
+                            </p>
+</div>
+<div class="grid grid-cols-3 gap-6 pt-8 border-t border-white/10">
+<div>
+<span class="block text-3xl font-bold mb-1">15k+</span>
+<span class="text-sm text-blue-200">Militantes</span>
+</div>
+<div>
+<span class="block text-3xl font-bold mb-1">85%</span>
+<span class="text-sm text-blue-200">Meta Global</span>
+</div>
+<div>
+<span class="block text-3xl font-bold mb-1">120</span>
+<span class="text-sm text-blue-200">Sectores</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

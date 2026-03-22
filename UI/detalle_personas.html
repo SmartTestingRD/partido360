@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Perfil de Persona: Web Responsive</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#136dec",
+                        "primary-hover": "#105bc5",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101822",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        body {
+            min-height: 100vh;
+        }@keyframes slide-up {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slide-up 0.3s ease-out forwards;
+        }
+        @media (min-width: 640px) {
+            .animate-slide-up {
+                animation: none;
+            }
+        }
+        .safe-area-bottom {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col md:flex-row antialiased">
+<nav class="hidden md:flex flex-col w-64 bg-white dark:bg-[#15202e] border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 z-30">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-2 text-primary font-bold text-xl">
+<span class="material-symbols-outlined">diversity_3</span>
+<span>CRM Político</span>
+</div>
+</div>
+<div class="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-blue-50 text-primary dark:bg-blue-900/20 dark:text-blue-400" href="#">
+<span class="material-symbols-outlined fill-1">person</span>
+<span class="font-medium">Personas</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-medium">Líderes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">map</span>
+<span class="font-medium">Territorio</span>
+</a>
+</div>
+<div class="p-4 border-t border-slate-100 dark:border-slate-800">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">JD</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">Juan Director</p>
+<p class="text-xs text-slate-500 truncate">Admin</p>
+</div>
+</div>
+</div>
+</nav>
+<div class="flex-1 flex flex-col min-h-screen">
+<header class="sticky top-0 z-20 bg-white/90 dark:bg-[#15202e]/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 md:py-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<button class="md:hidden flex items-center justify-center p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="text-base md:text-xl font-bold text-center md:text-left truncate">Perfil de Persona</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="hidden md:flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm" onclick="document.getElementById('conversion-modal').classList.remove('hidden')">
+<span class="material-symbols-outlined text-[18px]">stars</span>
+<span>Convertir en Líder</span>
+</button>
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-primary font-medium">
+<span class="material-symbols-outlined">edit</span>
+</button>
+</div>
+</header>
+<main class="flex-1 p-0 md:p-6 lg:p-8 overflow-y-auto w-full max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+<div class="w-full md:w-80 lg:w-96 flex-shrink-0">
+<div class="bg-white dark:bg-[#15202e] relative pb-6 pt-6 px-6 flex flex-col items-center border-b md:border border-slate-100 dark:border-slate-800 md:rounded-xl shadow-sm md:sticky md:top-6">
+<div class="relative group cursor-pointer mb-4">
+<div class="w-24 h-24 md:w-32 md:h-32 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-4 ring-white dark:ring-[#15202e] shadow-lg">
+<img alt="Woman smiling portrait" class="w-full h-full object-cover" data-alt="Portrait of Maria Rodriguez" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHhHauaywGbkxeIzc8wAO-KYmepYEVtpfHYgqcH4pC9X7Kiv6Ni-FyK36rtdqwnTgtyVQtEllsZyDhJ8m6LTYwTgO0o89Z8Gk7S0-z311wlNEzNkw6idq-Z7bwUSiW5tNLA0TrAtVvHCishiCrcGSKjzE6dRug1qOOg3bgO2kiA_P9YtfOCm8cC2-uGsjUSfzIOaBNnYG51NcPY2l-5IWpLH8cxa5vfZxbb9X9XNZe45AQxtk4ocsOR-JCtL4rAJckgOD1Ie_BpA"/>
+</div>
+<div class="absolute bottom-1 right-1 bg-green-500 border-2 border-white dark:border-[#15202e] w-7 h-7 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[16px] font-bold">check</span>
+</div>
+</div>
+<h2 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mb-1 text-center">María Rodríguez</h2>
+<div class="flex flex-col items-center gap-2 mb-6 w-full">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                                Simpatizante Activo
+                            </span>
+</div>
+<span class="text-xs text-slate-500 dark:text-slate-400">Registrada el 12 Oct 2023</span>
+</div>
+<div class="w-full space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+<div class="grid grid-cols-2 gap-4 text-center">
+<div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+<span class="block text-xl font-bold text-slate-900 dark:text-white">4</span>
+<span class="text-xs text-slate-500">Eventos</span>
+</div>
+<div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+<span class="block text-xl font-bold text-slate-900 dark:text-white">100%</span>
+<span class="text-xs text-slate-500">Asistencia</span>
+</div>
+</div>
+</div>
+<div class="hidden md:block w-full mt-6 space-y-2">
+<button class="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-slate-400">history</span>
+                            Ver Historial de Cambios
+                        </button>
+<button class="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-slate-400">share</span>
+                            Compartir Perfil
+                        </button>
+</div>
+</div>
+</div>
+<div class="flex-1 w-full px-4 md:px-0 pb-24 md:pb-0 space-y-6">
+<section class="space-y-3">
+<h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider pl-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-slate-400">badge</span>
+                        Información Personal
+                    </h3>
+<div class="bg-white dark:bg-[#15202e] rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+<div class="flex items-center p-4 md:p-5 border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">fingerprint</span>
+</div>
+<div class="ml-4 flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Cédula</p>
+<p class="text-sm font-medium text-slate-900 dark:text-white">1.020.333.444</p>
+</div>
+</div>
+<a class="flex items-center p-4 md:p-5 border-b md:border-b-0 border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="tel:+573001234567">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600 dark:text-green-400 group-hover:bg-green-100 transition-colors">
+<span class="material-symbols-outlined">call</span>
+</div>
+<div class="ml-4 flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Teléfono</p>
+<p class="text-sm font-medium text-slate-900 dark:text-white group-hover:text-primary transition-colors">+57 300 123 4567</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">open_in_new</span>
+</a>
+<a class="flex items-center p-4 md:p-5 border-b md:border-t md:border-r border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="mailto:maria.rodriguez@email.com">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:bg-purple-100 transition-colors">
+<span class="material-symbols-outlined">mail</span>
+</div>
+<div class="ml-4 flex-1 min-w-0">
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Email</p>
+<p class="text-sm font-medium text-slate-900 dark:text-white truncate">maria.rodriguez@email.com</p>
+</div>
+</a>
+<div class="flex items-center p-4 md:p-5 md:border-t hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+<div class="flex-shrink-0 w-10 h-10 rounded-full bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 dark:text-orange-400">
+<span class="material-symbols-outlined">location_on</span>
+</div>
+<div class="ml-4 flex-1">
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Sector</p>
+<p class="text-sm font-medium text-slate-900 dark:text-white">Zona Norte - Barrio La Paz</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="space-y-3">
+<h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider pl-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-slate-400">assignment_ind</span>
+                        Asignación Actual
+                    </h3>
+<div class="bg-white dark:bg-[#15202e] rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-4 md:p-6 space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div>
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-2 uppercase tracking-wide">Referido por</p>
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30">
+<div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0">
+<img alt="Man portrait" class="w-full h-full object-cover" data-alt="Portrait of Juan Perez" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsUlkzOTfy4vmClF1ZSAnTu_O8yeAaDA8mD3cHzdsFtxPHMCqsiorELV25rdEzk8zxDiQVBiFMii2TLtjb99f2puE9FJEv5kD_dfQ6k-SvhFFOqWeAEMkJWPpzbbJ_Z2x-oFTFUOvVSZT5rc7RKoVOl7n3tozMIewT6mSrMF5XqlvbMu2iRhnw7VUqFdp044u9eQDRY35Yj4IutKIZ7eJI_cApNbHQ7Sedn_7Y-IbNUCFGorBBbigNTTv3f9yjrdCqYGvYt_izPA"/>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-900 dark:text-white cursor-pointer hover:underline">Juan Pérez</p>
+<p class="text-xs text-slate-500">Líder Zona Norte</p>
+</div>
+</div>
+</div>
+<div>
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-2 uppercase tracking-wide">Fuente de Captación</p>
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30 h-[66px]">
+<div class="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+<span class="material-symbols-outlined">door_front</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-900 dark:text-white">Puerta a Puerta</p>
+<p class="text-xs text-slate-500">Campaña Octubre</p>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-2 md:pt-4 border-t border-slate-100 dark:border-slate-800">
+<p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-2 uppercase tracking-wide">Notas Internas</p>
+<div class="bg-yellow-50 dark:bg-yellow-900/10 p-4 rounded-lg border border-yellow-100 dark:border-yellow-900/30 relative">
+<span class="material-symbols-outlined absolute top-4 left-4 text-yellow-500/50 text-2xl">format_quote</span>
+<p class="text-sm text-slate-700 dark:text-slate-300 italic leading-relaxed pl-8">
+                                    "Muy interesada en participar como coordinadora de mesa. Tiene experiencia previa en logística electoral. Se recomienda seguimiento prioritario para la próxima reunión de coordinadores."
+                                </p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+</div>
+<div class="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-10 safe-area-bottom">
+<div class="max-w-lg mx-auto">
+<button class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-primary/25" onclick="document.getElementById('conversion-modal').classList.remove('hidden')">
+<span class="material-symbols-outlined">stars</span>
+<span>Convertir en Líder</span>
+</button>
+</div>
+</div>
+<div aria-labelledby="modal-title" aria-modal="true" class="hidden fixed inset-0 z-50 overflow-y-auto" id="conversion-modal" role="dialog">
+<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="document.getElementById('conversion-modal').classList.add('hidden')"></div>
+<div class="flex min-h-full items-end justify-center sm:items-center p-0 sm:p-4 text-center">
+<div class="relative transform overflow-hidden rounded-t-2xl sm:rounded-xl bg-white dark:bg-[#15202e] text-left shadow-2xl transition-all w-full sm:max-w-lg md:max-w-xl animate-slide-up sm:animate-none border border-slate-200 dark:border-slate-700">
+<div class="bg-slate-50 dark:bg-slate-800/50 px-4 py-4 sm:px-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-primary/10 rounded-full text-primary">
+<span class="material-symbols-outlined">social_leaderboard</span>
+</div>
+<div>
+<h3 class="text-lg font-bold leading-6 text-slate-900 dark:text-white" id="modal-title">Conversión a Líder</h3>
+<p class="text-xs text-slate-500 dark:text-slate-400">Asigna responsabilidades y metas</p>
+</div>
+</div>
+<button class="text-slate-400 hover:text-slate-500 rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" onclick="document.getElementById('conversion-modal').classList.add('hidden')" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="px-4 py-6 sm:p-6 space-y-5">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+<div class="sm:col-span-2">
+<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" for="goal">Meta de Captación</label>
+<div class="relative rounded-md shadow-sm">
+<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+<span class="text-slate-400 material-symbols-outlined text-[20px]">target</span>
+</div>
+<input class="block w-full rounded-lg border-slate-300 dark:border-slate-600 pl-10 focus:border-primary focus:ring-primary dark:bg-slate-800 dark:text-white py-2.5 sm:text-sm shadow-sm" id="goal" name="goal" placeholder="10" type="number" value="10"/>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+<span class="text-slate-400 text-xs">personas</span>
+</div>
+</div>
+<p class="mt-1 text-xs text-slate-500">Objetivo de personas a registrar en el sistema.</p>
+</div>
+<div>
+<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" for="level">Nivel de Líder</label>
+<select class="block w-full rounded-lg border-slate-300 dark:border-slate-600 focus:border-primary focus:ring-primary dark:bg-slate-800 dark:text-white py-2.5 sm:text-sm shadow-sm" id="level" name="level">
+<option>Coordinador de Zona</option>
+<option>Líder Barrial</option>
+<option selected="">Líder de Manzana</option>
+<option>Voluntario Avanzado</option>
+</select>
+</div>
+<div>
+<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1" for="superior">Líder Superior</label>
+<select class="block w-full rounded-lg border-slate-300 dark:border-slate-600 focus:border-primary focus:ring-primary dark:bg-slate-800 dark:text-white py-2.5 sm:text-sm shadow-sm" id="superior" name="superior">
+<option value="">Seleccionar...</option>
+<option value="1">Carlos Méndez (Zona Norte)</option>
+<option value="2">Ana Gómez (Comuna 4)</option>
+</select>
+</div>
+<div class="sm:col-span-2">
+<label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2" for="status">Estado Inicial</label>
+<div class="grid grid-cols-2 gap-3">
+<label class="relative cursor-pointer group">
+<input checked="" class="peer sr-only" name="leader_status" type="radio" value="active"/>
+<div class="w-full p-3 flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 peer-checked:bg-green-50 dark:peer-checked:bg-green-900/20 peer-checked:border-green-500 peer-checked:text-green-700 dark:peer-checked:text-green-400 transition-all text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+                                    Activo
+                                </div>
+</label>
+<label class="relative cursor-pointer group">
+<input class="peer sr-only" name="leader_status" type="radio" value="probation"/>
+<div class="w-full p-3 flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 peer-checked:bg-orange-50 dark:peer-checked:bg-orange-900/20 peer-checked:border-orange-500 peer-checked:text-orange-700 dark:peer-checked:text-orange-400 transition-all text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700">
+<span class="material-symbols-outlined text-[18px]">timelapse</span>
+                                    En Prueba
+                                </div>
+</label>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3 border-t border-slate-100 dark:border-slate-700">
+<button class="inline-flex w-full justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto" type="button">
+                    Confirmar y Convertir
+                </button>
+<button class="mt-3 inline-flex w-full justify-center rounded-lg bg-white dark:bg-transparent px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 shadow-sm ring-1 ring-inset ring-slate-300 dark:ring-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 sm:mt-0 sm:w-auto" onclick="document.getElementById('conversion-modal').classList.add('hidden')" type="button">
+                    Cancelar
+                </button>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>
