@@ -1383,6 +1383,71 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
     }
 });
 
+// GET /api/usuarios/lista — Lista de usuarios del sistema (scope por candidato_id)
+router.get('/usuarios/lista', authenticate, async (req, res, next) => {
+    try {
+        const SUPER = '00000000-0000-0000-0000-000000000001';
+        const isSuperAdmin = req.user?.candidato_id === SUPER;
+        let query, params;
+        if (isSuperAdmin) {
+            query = `
+                SELECT u.usuario_id, p.nombres||' '||p.apellidos AS nombre_completo,
+                       p.cedula, u.email_login, u.username, r.nombre AS rol_nombre,
+                       c.nombre AS candidato, u.fecha_creacion,
+                       CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END AS activo
+                FROM usuarios u
+                JOIN personas p ON u.persona_id = p.persona_id
+                JOIN roles r ON u.rol_id = r.rol_id
+                LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
+                LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
+                ORDER BY c.nombre NULLS LAST, r.nombre, p.apellidos`;
+            params = [];
+        } else {
+            query = `
+                SELECT u.usuario_id, p.nombres||' '||p.apellidos AS nombre_completo,
+                       p.cedula, u.email_login, u.username, r.nombre AS rol_nombre,
+                       c.nombre AS candidato, u.fecha_creacion,
+                       CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END AS activo
+                FROM usuarios u
+                JOIN personas p ON u.persona_id = p.persona_id
+                JOIN roles r ON u.rol_id = r.rol_id
+                LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
+                LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
+                WHERE u.candidato_id = $1
+                ORDER BY r.nombre, p.apellidos`;
+            params = [req.user.candidato_id];
+        }
+        const result = await pool.query(query, params);
+        res.json({ ok: true, data: result.rows });
+    } catch (err) { next(err); }
+});
+
+// PUT /api/usuarios/cambiar-password — El usuario autenticado cambia su propia contraseña
+router.put('/usuarios/cambiar-password', authenticate, async (req, res, next) => {
+    try {
+        const { password_actual, password_nuevo } = req.body;
+        if (!password_actual || !password_nuevo) {
+            return res.status(400).json({ ok: false, message: 'Faltan campos requeridos' });
+        }
+        if (password_nuevo.length < 8) {
+            return res.status(400).json({ ok: false, message: 'La nueva contraseña debe tener al menos 8 caracteres' });
+        }
+        const userRes = await pool.query(
+            'SELECT password_hash FROM usuarios WHERE usuario_id = $1', [req.user.usuario_id]
+        );
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
+        }
+        const valid = await bcrypt.compare(password_actual, userRes.rows[0].password_hash);
+        if (!valid) {
+            return res.status(400).json({ ok: false, message: 'La contraseña actual es incorrecta' });
+        }
+        const newHash = await bcrypt.hash(password_nuevo, 10);
+        await pool.query('UPDATE usuarios SET password_hash = $1 WHERE usuario_id = $2', [newHash, req.user.usuario_id]);
+        res.json({ ok: true, message: 'Contraseña actualizada correctamente' });
+    } catch (err) { next(err); }
+});
+
 // POST /api/usuarios — Crear acceso (usuario) para una persona
 router.post('/usuarios', async (req, res, next) => {
     const client = await pool.connect();

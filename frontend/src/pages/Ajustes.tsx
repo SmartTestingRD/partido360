@@ -39,12 +39,6 @@ const BASE_TABS: TabDef[] = [
     { id: 'sistema', label: 'Sistema', icon: 'settings' },
 ];
 
-// ─── Helper: rol desde localStorage ─────────────────────────────────────────
-function getRolFromStorage(): string {
-    try { return JSON.parse(localStorage.getItem('user') || '{}').rol_nombre || ''; }
-    catch { return ''; }
-}
-
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
     <div className={`bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark ${className}`}>
@@ -227,8 +221,47 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     );
 };
 
+// ─── Helpers para badge de rol ────────────────────────────────────────────────
+const rolBadge = (rol: string) => {
+    const map: Record<string, string> = {
+        'Admin':     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+        'Coordinador': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+        'Sub-Líder': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800',
+    };
+    return map[rol] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700';
+};
+
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────
 const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const isSuperAdminTab = userObj?.rol_nombre?.toUpperCase() === 'ADMIN' && userObj?.candidato_id === SUPER_ADMIN_ID;
+
+    // Lista de usuarios
+    const [usuarios, setUsuarios] = useState<any[]>([]);
+    const [loadingUsuarios, setLoadingUsuarios] = useState(true);
+    const [resettingId, setResettingId] = useState<string | null>(null);
+
+    const loadUsuarios = async () => {
+        setLoadingUsuarios(true);
+        try {
+            const r = await axios.get(`${API}/usuarios/lista`);
+            setUsuarios(r.data.data || []);
+        } catch { /* silencioso */ }
+        finally { setLoadingUsuarios(false); }
+    };
+
+    useEffect(() => { loadUsuarios(); }, []);
+
+    const handleResetUsuario = async (usuario_id: string, nombre: string) => {
+        setResettingId(usuario_id);
+        try {
+            await axios.post(`${API}/usuarios/${usuario_id}/reset-password`, { generar_password_temporal: true });
+            toast(`Contraseña reseteada para ${nombre} ✓`, 'success');
+        } catch (e: any) {
+            toast(e.response?.data?.message || 'Error al resetear contraseña', 'error');
+        } finally { setResettingId(null); }
+    };
+
     const [form, setForm] = useState({
         persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador',
         generar_password_temporal: true, password: '',
@@ -275,6 +308,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
             toast('Usuario creado exitosamente ✓', 'success');
             setForm({ persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador', generar_password_temporal: true, password: '' });
             setSearchQ(''); setSearchResults([]);
+            loadUsuarios();
         } catch (e: any) {
             const msg = e.response?.data?.message || 'Error al crear usuario';
             toast(msg, 'error');
@@ -297,6 +331,65 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
 
     return (
         <div className="space-y-6">
+            {/* Lista de usuarios */}
+            <Card>
+                <SectionHeader icon="manage_accounts" title="Usuarios del Sistema" subtitle="Todos los accesos registrados" />
+                {loadingUsuarios ? (
+                    <div className="p-10 flex justify-center"><Spinner /></div>
+                ) : usuarios.length === 0 ? (
+                    <div className="py-10 text-center text-gray-400 text-sm">No hay usuarios registrados</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                                <tr>
+                                    <th className="px-5 py-3 text-left">Nombre</th>
+                                    <th className="px-5 py-3 text-left">Cédula</th>
+                                    <th className="px-5 py-3 text-left">Login</th>
+                                    <th className="px-5 py-3 text-left">Rol</th>
+                                    {isSuperAdminTab && <th className="px-5 py-3 text-left">Candidato</th>}
+                                    <th className="px-5 py-3 text-center">Estado</th>
+                                    <th className="px-5 py-3 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {usuarios.map(u => (
+                                    <tr key={u.usuario_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{u.nombre_completo}</td>
+                                        <td className="px-5 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{u.cedula ? fmtCedula(u.cedula) : '—'}</td>
+                                        <td className="px-5 py-3 text-gray-600 dark:text-gray-300 text-xs">{u.email_login || u.username || '—'}</td>
+                                        <td className="px-5 py-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${rolBadge(u.rol_nombre)}`}>
+                                                {u.rol_nombre}
+                                            </span>
+                                        </td>
+                                        {isSuperAdminTab && (
+                                            <td className="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">{u.candidato || '—'}</td>
+                                        )}
+                                        <td className="px-5 py-3 text-center">
+                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${u.activo ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${u.activo ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                                {u.activo ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-3 text-center">
+                                            <button
+                                                onClick={() => handleResetUsuario(u.usuario_id, u.nombre_completo)}
+                                                disabled={resettingId === u.usuario_id}
+                                                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800 transition-colors disabled:opacity-50"
+                                            >
+                                                {resettingId === u.usuario_id ? <Spinner /> : <span className="material-symbols-outlined text-sm">lock_reset</span>}
+                                                Resetear clave
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+
             {/* Crear usuario */}
             <Card>
                 <SectionHeader icon="person_add" title="Crear Acceso de Usuario" subtitle="Vincula una persona existente a un rol de acceso al sistema" />
@@ -520,9 +613,14 @@ const TabCatalogos = () => {
 };
 
 // ─── Tab: Sistema ─────────────────────────────────────────────────────────────
-const TabSistema = () => {
+const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
     const [status, setStatus] = useState<'checking' | 'ok' | 'error'>('checking');
     const [dbInfo, setDbInfo] = useState<{ sectores: number; lideres: number; personas: number } | null>(null);
+
+    // Cambiar contraseña
+    const [pwForm, setPwForm] = useState({ actual: '', nuevo: '', confirmar: '' });
+    const [showPw, setShowPw] = useState({ actual: false, nuevo: false, confirmar: false });
+    const [pwLoading, setPwLoading] = useState(false);
 
     useEffect(() => {
         const check = async () => {
@@ -560,8 +658,62 @@ const TabSistema = () => {
         { key: 'Versión', value: 'v1.0.0 — Build estable' },
     ];
 
+    const handleCambiarPassword = async () => {
+        if (!pwForm.actual || !pwForm.nuevo || !pwForm.confirmar) {
+            toast('Completa todos los campos', 'error'); return;
+        }
+        if (pwForm.nuevo.length < 8) {
+            toast('La nueva contraseña debe tener al menos 8 caracteres', 'error'); return;
+        }
+        if (pwForm.nuevo !== pwForm.confirmar) {
+            toast('La nueva contraseña y la confirmación no coinciden', 'error'); return;
+        }
+        setPwLoading(true);
+        try {
+            await axios.put(`${API}/usuarios/cambiar-password`, { password_actual: pwForm.actual, password_nuevo: pwForm.nuevo });
+            toast('Contraseña actualizada correctamente ✓', 'success');
+            setPwForm({ actual: '', nuevo: '', confirmar: '' });
+        } catch (e: any) {
+            toast(e.response?.data?.message || 'Error al cambiar contraseña', 'error');
+        } finally { setPwLoading(false); }
+    };
+
     return (
         <div className="space-y-6">
+            {/* Cambiar contraseña */}
+            <Card>
+                <SectionHeader icon="key" title="Cambiar mi Contraseña" subtitle="Actualiza tu contraseña de acceso al sistema" />
+                <div className="p-6 space-y-4 max-w-md">
+                    {(['actual', 'nuevo', 'confirmar'] as const).map(field => {
+                        const labels = { actual: 'Contraseña actual', nuevo: 'Nueva contraseña', confirmar: 'Confirmar nueva contraseña' };
+                        return (
+                            <div key={field}>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{labels[field]}</label>
+                                <div className="relative">
+                                    <input
+                                        type={showPw[field] ? 'text' : 'password'}
+                                        value={pwForm[field]}
+                                        onChange={e => setPwForm(p => ({ ...p, [field]: e.target.value }))}
+                                        placeholder={field === 'nuevo' ? 'Mínimo 8 caracteres' : ''}
+                                        className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 pr-10 text-sm focus:border-primary outline-none"
+                                    />
+                                    <button type="button" tabIndex={-1}
+                                        onClick={() => setShowPw(p => ({ ...p, [field]: !p[field] }))}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                                        <span className="material-symbols-outlined text-lg">{showPw[field] ? 'visibility_off' : 'visibility'}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <button onClick={handleCambiarPassword} disabled={pwLoading}
+                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-blue-500/30 mt-2">
+                        {pwLoading ? <Spinner /> : <span className="material-symbols-outlined text-lg">lock</span>}
+                        Actualizar contraseña
+                    </button>
+                </div>
+            </Card>
+
             {/* Estado del backend */}
             <Card>
                 <SectionHeader icon="cloud_done" title="Estado del Servidor" subtitle="Conectividad con el backend y base de datos" />
@@ -1044,12 +1196,16 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+const SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
+
 const Ajustes = () => {
-    const rol = getRolFromStorage();
-    const isAdmin = rol === 'ADMIN';
-    const visibleTabs: TabDef[] = isAdmin
-        ? [...BASE_TABS, { id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }]
-        : BASE_TABS;
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const isAdmin = userObj?.rol_nombre?.toUpperCase() === 'ADMIN';
+    const isSuperAdmin = isAdmin && userObj?.candidato_id === SUPER_ADMIN_ID;
+    const visibleTabs: TabDef[] = [
+        ...BASE_TABS,
+        ...(isSuperAdmin ? [{ id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }] : []),
+    ];
 
     const [activeTab, setActiveTab] = useState<Tab>('meta');
     const [toasts, setToasts] = useState<Toast[]>([]);
@@ -1096,8 +1252,8 @@ const Ajustes = () => {
                 {activeTab === 'meta' && <TabMetaGlobal toast={toast} />}
                 {activeTab === 'usuarios' && <TabUsuarios toast={toast} />}
                 {activeTab === 'catalogos' && <TabCatalogos />}
-                {activeTab === 'sistema' && <TabSistema />}
-                {activeTab === 'candidatos' && isAdmin && <TabCandidatos toast={toast} />}
+                {activeTab === 'sistema' && <TabSistema toast={toast} />}
+                {activeTab === 'candidatos' && isSuperAdmin && <TabCandidatos toast={toast} />}
 
                 <div className="h-10" />
             </div>
