@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
+import { IMaskInput } from 'react-imask';
 import {
     getSectores,
     getEstadosLider,
     getNivelesLider,
     getLideres,
     createLiderFull,
+    createLiderHierarchy,
     buscarPersonas,
     Sector,
     EstadoLider,
     NivelLider,
     Lider,
-    PersonaBusqueda,
-    CreateLiderPayload
+    PersonaBusqueda
 } from '../api/apiService';
 
 interface CreateLiderModalProps {
@@ -24,6 +25,18 @@ interface CreateLiderModalProps {
 const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderModalProps) => {
     const [isSaving, setIsSaving] = useState(false);
     const [modo, setModo] = useState<'NUEVO' | 'EXISTENTE'>('NUEVO');
+
+    // Auth context
+    const userStr = localStorage.getItem('user');
+    let currentUser: any = null;
+    if (userStr) {
+        try { currentUser = JSON.parse(userStr); } catch (e) { }
+    }
+    
+    // Si el rol contiene 'ADMIN', lo tratamos como admin global (no restringido a jerarquía automática)
+    const isAdmin = currentUser?.rol_nombre?.toUpperCase().includes('ADMIN');
+    const isLiderOrCoordinador = !isAdmin && (currentUser?.rol_nombre === 'SUB_LIDER' || currentUser?.rol_nombre === 'COORDINADOR');
+    const currentLiderId = currentUser?.lider_id;
 
     // Catalogs
     const [sectores, setSectores] = useState<Sector[]>([]);
@@ -41,10 +54,10 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
     const [form, setForm] = useState({
         persona: { nombres: '', apellidos: '', cedula: '', telefono: '', email: '', sector_id: '', mesa: '', notas: '' },
         lider: { meta_cantidad: 10, nivel_lider_id: '', estado_lider_id: '', lider_padre_id: '', codigo_lider: '' },
-        usuario: { crear: false, email_login: '', generar_password_temporal: true }
+        usuario: { crear: false }
     });
 
-    const [creacionResult, setCreacionResult] = useState<{ password_temporal?: string; lider_id?: string } | null>(null);
+    const [creacionResult, setCreacionResult] = useState<{ lider_id?: string } | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -61,17 +74,18 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
             setEstadosLider(e);
             setNivelesLider(n);
             setTodoLideres(all);
-
-            // Set defaults
+            // Set defaults únicamente si el usuario es Admin o elige manualmente
             const cabeza = n.find(nv => nv.nombre.toLowerCase() === 'cabeza') || n[0];
             const activo = e.find(ev => ev.nombre.toLowerCase() === 'activo') || e[0];
-
+            
             setForm(prev => ({
                 ...prev,
                 lider: {
                     ...prev.lider,
-                    nivel_lider_id: cabeza?.nivel_lider_id || '',
-                    estado_lider_id: activo?.estado_lider_id || ''
+                    // Si es jerarquía automática, no forzamos 'Cabeza' en el front, dejamos que el backend decida
+                    nivel_lider_id: isLiderOrCoordinador ? '' : (cabeza?.nivel_lider_id || ''),
+                    estado_lider_id: activo?.estado_lider_id || '',
+                    lider_padre_id: isLiderOrCoordinador && currentLiderId ? currentLiderId : prev.lider.lider_padre_id
                 }
             }));
         } catch (err) {
@@ -88,7 +102,7 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
         setForm({
             persona: { nombres: '', apellidos: '', cedula: '', telefono: '', email: '', sector_id: '', mesa: '', notas: '' },
             lider: { meta_cantidad: 10, nivel_lider_id: nivelesLider[0]?.nivel_lider_id || '', estado_lider_id: estadosLider.find(e => e.nombre === 'Activo')?.estado_lider_id || '', lider_padre_id: '', codigo_lider: '' },
-            usuario: { crear: false, email_login: '', generar_password_temporal: true }
+            usuario: { crear: false }
         });
     };
 
@@ -109,38 +123,76 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
         return () => clearTimeout(timer);
     }, [busquedaQuery, modo]);
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        
+        // Bloquear números y caracteres especiales en nombres y apellidos en tiempo real
+        if (name === 'nombres' || name === 'apellidos') {
+            const cleanValue = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]/g, '');
+            setForm(prev => ({ ...prev, persona: { ...prev.persona, [name]: cleanValue } }));
+        } else {
+            // Check if it belongs to persona, lider or usuario
+            if (['nombres', 'apellidos', 'cedula', 'telefono', 'email', 'sector_id', 'mesa', 'notas'].includes(name)) {
+                setForm(prev => ({ ...prev, persona: { ...prev.persona, [name]: value } }));
+            } else if (['meta_cantidad', 'nivel_lider_id', 'estado_lider_id', 'lider_padre_id', 'codigo_lider'].includes(name)) {
+                setForm(prev => ({ ...prev, lider: { ...prev.lider, [name]: value } }));
+            } else if (['crear'].includes(name)) {
+                setForm(prev => ({ ...prev, usuario: { ...prev.usuario, [name]: value } }));
+            }
+        }
+    };
+
     const handleSave = async () => {
         const { persona, lider, usuario } = form;
 
+        // --- Validaciones de Campos Requeridos (Español) ---
         if (modo === 'EXISTENTE') {
             if (!personaSeleccionada) {
                 addToast('Selecciona una persona existente.', 'error'); return;
             }
         } else {
-            if (!persona.nombres || !persona.apellidos || !persona.telefono || !persona.sector_id) {
-                addToast('Por favor completa todos los campos obligatorios.', 'error'); return;
+            if (!persona.nombres.trim()) { addToast('El nombre es obligatorio.', 'error'); return; }
+            if (!persona.apellidos.trim()) { addToast('El apellido es obligatorio.', 'error'); return; }
+            if (!persona.cedula || persona.cedula.length < 11) { addToast('La cédula es obligatoria y debe estar completa.', 'error'); return; }
+            if (!persona.telefono || persona.telefono.length < 10) { addToast('El teléfono es obligatorio.', 'error'); return; }
+            if (!persona.sector_id) { addToast('Debe seleccionar un centro de votación.', 'error'); return; }
+        }
+
+        if (!isLiderOrCoordinador) {
+            if (!lider.nivel_lider_id) { addToast('Debe seleccionar un nivel jerárquico.', 'error'); return; }
+            if (!lider.estado_lider_id) { addToast('Debe seleccionar un estado para el líder.', 'error'); return; }
+        }
+
+        // Si crear=true, la cédula se usa automáticamente como login — sin validación de email
+
+        // --- Validaciones de Formato (Nombres) ---
+        const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]+$/;
+        if (modo === 'NUEVO') {
+            if (!nameRegex.test(persona.nombres.trim())) { addToast('El nombre solo permite letras y espacios.', 'error'); return; }
+            if (!nameRegex.test(persona.apellidos.trim())) { addToast('El apellido solo permite letras y espacios.', 'error'); return; }
+            if (persona.email && persona.email.trim() !== '') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(persona.email.trim())) {
+                    addToast('El correo de contacto tiene un formato inválido.', 'error');
+                    return;
+                }
             }
-        }
-
-        if (!lider.nivel_lider_id || !lider.estado_lider_id) {
-            addToast('Selecciona nivel y estado del líder.', 'error'); return;
-        }
-
-        if (usuario.crear && !usuario.email_login) {
-            addToast('Introduce el email de acceso del usuario.', 'error'); return;
         }
 
         setIsSaving(true);
         try {
-            const payload: CreateLiderPayload = {
+            const payload: any = {
                 modo: modo,
-                lider: {
+                lider: isLiderOrCoordinador ? undefined : {
                     meta_cantidad: lider.meta_cantidad,
                     nivel_lider_id: lider.nivel_lider_id,
                     estado_lider_id: lider.estado_lider_id,
                     lider_padre_id: lider.lider_padre_id || null,
                     codigo_lider: lider.codigo_lider || null,
                 },
+                // Campos para el endpoint de jerarquía
+                lider_padre_id: isLiderOrCoordinador ? currentLiderId : undefined,
+                meta_cantidad: isLiderOrCoordinador ? lider.meta_cantidad : undefined,
             };
 
             if (modo === 'EXISTENTE') {
@@ -159,23 +211,27 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
             }
 
             if (usuario.crear) {
+                // La cédula de la persona se usará como login — backend la obtiene directamente
+                // Contraseña inicial fija: Clave1234!
                 payload.usuario = {
                     crear: true,
-                    email_login: usuario.email_login,
-                    generar_password_temporal: usuario.generar_password_temporal,
-                    rol_nombre: 'Lider',
+                    rol_nombre: 'Sub-Líder',
                     estado_usuario_nombre: 'Activo',
                 };
             }
 
-            const res = await createLiderFull(payload);
-            const pt = res?.data?.usuario?.password_temporal;
-            if (pt) {
-                setCreacionResult({ password_temporal: pt, lider_id: res?.data?.lider_id });
+            const res = isLiderOrCoordinador 
+                ? await createLiderHierarchy(payload)
+                : await createLiderFull(payload);
+
+            if (usuario.crear) {
+                // Mostrar pantalla de confirmación con la clave fija
+                setCreacionResult({ lider_id: res?.data?.lider_id });
             } else {
                 addToast('Líder creado exitosamente.', 'success');
                 onSuccess();
                 onClose();
+                window.location.hash = 'lideres';
             }
         } catch (err: any) {
             const code = err.response?.data?.code;
@@ -190,7 +246,25 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-all duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            
+            {/* Loader Overlay (Copiado de RegistrarPersona) */}
+            {isSaving && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in text-center">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 border border-white/20 dark:border-slate-700/50">
+                        <div className="relative">
+                            <div className="w-16 h-16 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-blue-600 animate-pulse">person_add</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Procesando Líder</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Creando el nuevo perfil en la estructura...</p>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="bg-white dark:bg-card-dark rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
 
                 {/* Header */}
@@ -211,25 +285,32 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                         </div>
                         <div>
                             <p className="font-bold text-gray-900 dark:text-white text-lg">¡Líder creado exitosamente!</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Guarda la contraseña temporal. No se mostrará nuevamente.</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">El líder ya puede iniciar sesión con su cédula.</p>
                         </div>
                         <div className="w-full bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
-                            <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2">Contraseña Temporal</p>
+                            <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2">Contraseña Inicial</p>
                             <div className="flex items-center gap-3 justify-center">
                                 <code className="text-xl font-mono font-bold text-yellow-900 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900/40 px-4 py-2 rounded-lg tracking-widest">
-                                    {creacionResult.password_temporal}
+                                    Clave1234!
                                 </code>
                                 <button
-                                    onClick={() => { navigator.clipboard.writeText(creacionResult.password_temporal!); addToast('Contraseña copiada', 'success'); }}
+                                    onClick={() => { navigator.clipboard.writeText('Clave1234!'); addToast('Contraseña copiada', 'success'); }}
                                     className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 text-yellow-700 dark:text-yellow-400 transition-colors"
                                     title="Copiar"
                                 >
                                     <span className="material-symbols-outlined text-lg">content_copy</span>
                                 </button>
                             </div>
+                            <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-2 text-center">Login: cédula de la persona · Contraseña: Clave1234!</p>
                         </div>
                         <button
-                            onClick={() => { onSuccess(); onClose(); }}
+                            onClick={() => {
+                                onSuccess();
+                                onClose();
+                                if (isLiderOrCoordinador) {
+                                    window.location.hash = 'dashboard';
+                                }
+                            }}
                             className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                         >
                             Aceptar y cerrar
@@ -238,7 +319,6 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                 ) : (
                     <>
                         <div className="overflow-y-auto flex-1 font-display">
-                            {/* Selector de modo */}
                             <div className="px-6 pt-5 pb-4 border-b border-gray-100 dark:border-gray-800">
                                 <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 gap-1">
                                     <button
@@ -339,43 +419,60 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nombres *</label>
-                                                <input type="text" className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <input type="text" 
+                                                    name="nombres"
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     value={form.persona.nombres}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, nombres: e.target.value } }))} />
+                                                    onChange={handleInputChange} />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Apellidos *</label>
-                                                <input type="text" className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <input type="text" 
+                                                    name="apellidos"
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     value={form.persona.apellidos}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, apellidos: e.target.value } }))} />
+                                                    onChange={handleInputChange} />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cédula</label>
-                                                <input type="text" className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Cédula *</label>
+                                                <IMaskInput
+                                                    mask="000-0000000-0"
+                                                    unmask={true}
+                                                    onAccept={(value: string) => setForm(p => ({ ...p, persona: { ...p.persona, cedula: value } }))}
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     placeholder="000-0000000-0"
                                                     value={form.persona.cedula}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, cedula: e.target.value } }))} />
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Teléfono *</label>
-                                                <input type="text" className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <IMaskInput
+                                                    mask="000-000-0000"
+                                                    unmask={true}
+                                                    onAccept={(value: string) => setForm(p => ({ ...p, persona: { ...p.persona, telefono: value } }))}
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                    placeholder="000-000-0000"
                                                     value={form.persona.telefono}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, telefono: e.target.value } }))} />
+                                                />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Centro de Votación *</label>
-                                                <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <select 
+                                                    name="sector_id"
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     value={form.persona.sector_id}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, sector_id: e.target.value } }))}>
+                                                    onChange={handleInputChange}>
                                                     <option value="">Seleccionar Centro de Votación</option>
                                                     {sectores.map(s => <option key={s.sector_id} value={s.sector_id}>{s.nombre}</option>)}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mesa</label>
-                                                <input type="text" className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                <input type="text" 
+                                                    name="mesa"
+                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     value={form.persona.mesa || ''}
-                                                    onChange={e => setForm(p => ({ ...p, persona: { ...p.persona, mesa: e.target.value } }))} />
+                                                    onChange={handleInputChange} />
                                             </div>
                                         </div>
                                     )}
@@ -396,21 +493,30 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nivel *</label>
-                                            <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
-                                                value={form.lider.nivel_lider_id}
-                                                onChange={e => setForm(p => ({ ...p, lider: { ...p.lider, nivel_lider_id: e.target.value } }))}>
-                                                {nivelesLider.map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
-                                            </select>
+                                            {isLiderOrCoordinador ? (
+                                                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-300 italic flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-sm">auto_fix</span>
+                                                    Asignación Automática (Nivel Inferior)
+                                                </div>
+                                            ) : (
+                                                <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                    value={form.lider.nivel_lider_id}
+                                                    onChange={e => setForm(p => ({ ...p, lider: { ...p.lider, nivel_lider_id: e.target.value } }))}>
+                                                    {nivelesLider.map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
+                                                </select>
+                                            )}
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Líder Superior</label>
-                                            <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
-                                                value={form.lider.lider_padre_id}
-                                                onChange={e => setForm(p => ({ ...p, lider: { ...p.lider, lider_padre_id: e.target.value } }))}>
-                                                <option value="">Sin Líder Superior</option>
-                                                {todoLideres.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
-                                            </select>
-                                        </div>
+                                        {!isLiderOrCoordinador && (
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Líder Superior</label>
+                                                <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
+                                                    value={form.lider.lider_padre_id}
+                                                    onChange={e => setForm(p => ({ ...p, lider: { ...p.lider, lider_padre_id: e.target.value } }))}>
+                                                    <option value="">Sin Líder Superior</option>
+                                                    {todoLideres.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Estado *</label>
                                             <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm"
@@ -438,23 +544,12 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                                     </div>
 
                                     {form.usuario.crear && (
-                                        <div className="space-y-4 animate-slide-down">
-                                            <div>
-                                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email / Login *</label>
-                                                <input type="text" placeholder="usuario@gmail.com"
-                                                    className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
-                                                    value={form.usuario.email_login}
-                                                    onChange={e => setForm(p => ({ ...p, usuario: { ...p.usuario, email_login: e.target.value } }))} />
+                                        <div className="mt-3 flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 animate-slide-down">
+                                            <span className="material-symbols-outlined text-blue-500 text-xl shrink-0 mt-0.5">info</span>
+                                            <div className="text-sm text-blue-800 dark:text-blue-200">
+                                                <p className="font-semibold">Acceso automático por cédula</p>
+                                                <p className="mt-0.5 text-blue-600 dark:text-blue-300">El líder podrá iniciar sesión con su <strong>cédula</strong> y la contraseña inicial <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">Clave1234!</code></p>
                                             </div>
-                                            <label className="flex items-start gap-3 cursor-pointer group">
-                                                <input type="checkbox" className="mt-0.5 rounded border-slate-300 text-primary focus:ring-primary"
-                                                    checked={form.usuario.generar_password_temporal}
-                                                    onChange={e => setForm(p => ({ ...p, usuario: { ...p.usuario, generar_password_temporal: e.target.checked } }))} />
-                                                <div>
-                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors">Generar contraseña temporal segura</span>
-                                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Se mostrará una sola vez al crear para que el usuario la cambie.</p>
-                                                </div>
-                                            </label>
                                         </div>
                                     )}
                                 </section>

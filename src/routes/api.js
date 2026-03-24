@@ -1,5 +1,21 @@
 const express = require('express');
 const router = express.Router();
+
+// Helper: obtiene el candidato_id del usuario autenticado.
+// Retorna null para Super Admin (ve todo), o el candidato_id para filtrar.
+const SUPER_ADMIN_CANDIDATO_ID = '00000000-0000-0000-0000-000000000001';
+async function getCandidatoId(req) {
+  const cid = req.user?.candidato_id;
+  if (req.user?.rol_nombre === 'ADMIN') {
+    // Super Admin: candidato_id es el default → ve todo sin filtro
+    if (!cid || cid === SUPER_ADMIN_CANDIDATO_ID) return null;
+    // Admin de candidato: tiene un candidato_id específico → filtra por él
+    return cid;
+  }
+  // Otros roles: filtrar por su candidato_id del JWT
+  return cid || null;
+}
+
 const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -24,6 +40,117 @@ router.get('/sectores', async (req, res, next) => {
     }
 });
 
+// POST /sectores
+router.post('/sectores', authenticate, async (req, res, next) => {
+  try {
+    const { nombre } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ ok: false, message: 'nombre es requerido' });
+    const result = await pool.query(
+      'INSERT INTO sectores (nombre, activo) VALUES ($1, true) RETURNING *',
+      [nombre.trim()]
+    );
+    res.status(201).json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PUT /sectores/:id
+router.put('/sectores/:id', authenticate, async (req, res, next) => {
+  try {
+    const { nombre, activo } = req.body;
+    const { id } = req.params;
+    const result = await pool.query(
+      'UPDATE sectores SET nombre = COALESCE($1, nombre), activo = COALESCE($2, activo) WHERE sector_id = $3 RETURNING *',
+      [nombre?.trim() || null, activo ?? null, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Sector no encontrado' });
+    res.json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /sectores/:id — eliminación real con validación
+router.delete('/sectores/:id', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const check = await pool.query(
+      'SELECT COUNT(*) FROM personas WHERE sector_id = $1',
+      [id]
+    );
+    const count = parseInt(check.rows[0].count);
+    if (count > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: `No se puede eliminar: hay ${count} persona${count === 1 ? '' : 's'} asignada${count === 1 ? '' : 's'} a este centro de votación`
+      });
+    }
+    const del = await pool.query('DELETE FROM sectores WHERE sector_id = $1 RETURNING sector_id', [id]);
+    if (del.rows.length === 0) return res.status(404).json({ ok: false, message: 'Centro de votación no encontrado' });
+    res.json({ ok: true, message: 'Centro de votación eliminado correctamente' });
+  } catch (err) { next(err); }
+});
+
+// GET /sectores/todos (incluyendo inactivos)
+router.get('/sectores/todos', authenticate, async (req, res, next) => {
+  try {
+    const result = await pool.query('SELECT sector_id, nombre, activo FROM sectores ORDER BY nombre');
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /fuentes
+router.post('/fuentes', authenticate, async (req, res, next) => {
+  try {
+    const { nombre } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ ok: false, message: 'nombre es requerido' });
+    const result = await pool.query(
+      'INSERT INTO fuentes_captacion (nombre, activo) VALUES ($1, true) RETURNING *',
+      [nombre.trim()]
+    );
+    res.status(201).json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PUT /fuentes/:id
+router.put('/fuentes/:id', authenticate, async (req, res, next) => {
+  try {
+    const { nombre, activo } = req.body;
+    const result = await pool.query(
+      'UPDATE fuentes_captacion SET nombre = COALESCE($1, nombre), activo = COALESCE($2, activo) WHERE fuente_id = $3 RETURNING *',
+      [nombre?.trim() || null, activo ?? null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Fuente no encontrada' });
+    res.json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// DELETE /fuentes/:id — eliminación real con validación
+router.delete('/fuentes/:id', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const check = await pool.query(
+      'SELECT COUNT(*) FROM personas WHERE fuente_id = $1',
+      [id]
+    );
+    const count = parseInt(check.rows[0].count);
+    if (count > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: `No se puede eliminar: hay ${count} persona${count === 1 ? '' : 's'} con esta fuente de captación`
+      });
+    }
+    const del = await pool.query('DELETE FROM fuentes_captacion WHERE fuente_id = $1 RETURNING fuente_id', [id]);
+    if (del.rows.length === 0) return res.status(404).json({ ok: false, message: 'Fuente no encontrada' });
+    res.json({ ok: true, message: 'Fuente eliminada correctamente' });
+  } catch (err) { next(err); }
+});
+
+// GET /fuentes/todas
+router.get('/fuentes/todas', authenticate, async (req, res, next) => {
+  try {
+    const result = await pool.query('SELECT fuente_id, nombre, activo FROM fuentes_captacion ORDER BY nombre');
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { next(err); }
+});
+
 // GET /dashboard
 router.get('/dashboard', authenticate, async (req, res, next) => {
     try {
@@ -35,31 +162,38 @@ router.get('/dashboard', authenticate, async (req, res, next) => {
             const values = scopeRes.values;
             const role = req.user?.rol_nombre;
 
-            // For simple tables where filtering applies differently
-            let personaQueryBase = `FROM personas`;
+            // ── Filtros de scope para el dashboard ───────────────────────────
+            // ADMIN        → sin filtro de árbol (ve todo; candidato_id puede ser null)
+            // COORDINADOR  → filtra por candidato_id (ve todo su candidato)
+            // SUB_LIDER    → filtra por árbol de líderes bajo su lider_id
+            let personaQueryBase = `FROM personas p WHERE p.candidato_id = $1`;
             let personaFilter = '';
-            let liderFilter = '';
-            let asignacionFilter = '';
-            let filterValues = [];
+            let liderFilter = ` WHERE l.candidato_id = $1`;
+            let asignacionFilter = ` WHERE a.candidato_id = $1`;
+            let filterValues = [req.user.candidato_id];
 
-            if (role === 'LIDER') {
-                const treeIds = await getScopeLeaderIds(req.user.lider_id);
-                personaQueryBase = `FROM personas JOIN asignaciones a ON personas.persona_id = a.persona_id`;
-                personaFilter = ` WHERE a.lider_id = ANY($1)`;
-                liderFilter = ` WHERE l.lider_id = ANY($1)`;
-                asignacionFilter = ` WHERE l.lider_id = ANY($1)`;
-                filterValues = [treeIds];
+            if (role === 'SUB_LIDER') {
+                const treeIds = await getScopeLeaderIds(req.user.lider_id || null);
+                personaQueryBase = `FROM personas p JOIN asignaciones a ON p.persona_id = a.persona_id WHERE p.candidato_id = $1`;
+                personaFilter = ` AND a.lider_id = ANY($2)`;
+                liderFilter += ` AND l.lider_id = ANY($2)`;
+                asignacionFilter += ` AND a.lider_id = ANY($2)`;
+                filterValues = [req.user.candidato_id, treeIds];
+            } else if (role !== 'ADMIN') {
+                // COORDINADOR u otros no-ADMIN: solo filtra por candidato_id
+                // personaQueryBase, liderFilter y filterValues ya apuntan a candidato_id=$1
+                personaFilter = '';
             }
 
             // 1. Total Captadas
-            const capQuery = await client.query(`SELECT COUNT(DISTINCT personas.persona_id) as total ${personaQueryBase} ${personaFilter}`, filterValues);
+            const capQuery = await client.query(`SELECT COUNT(DISTINCT p.persona_id) as total ${personaQueryBase} ${personaFilter}`, filterValues);
             const totalCaptadas = parseInt(capQuery.rows[0].total) || 0;
 
             // 2. Nuevos Hoy
             const hoyQuery = await client.query(`
-                SELECT COUNT(DISTINCT personas.persona_id) as total 
+                SELECT COUNT(DISTINCT p.persona_id) as total 
                 ${personaQueryBase}
-                ${personaFilter ? personaFilter + ' AND' : 'WHERE'} DATE(personas.fecha_registro) = CURRENT_DATE
+                ${personaFilter} AND DATE(p.fecha_registro) = CURRENT_DATE
             `, filterValues);
             const nuevosHoy = parseInt(hoyQuery.rows[0].total) || 0;
 
@@ -116,8 +250,8 @@ router.get('/dashboard', authenticate, async (req, res, next) => {
                     COUNT(DISTINCT p.persona_id) as count
                 FROM sectores s
                 JOIN personas p ON s.sector_id = p.sector_id
-                ${role === 'LIDER' ? 'JOIN asignaciones a ON p.persona_id = a.persona_id' : ''}
-                ${personaFilter}
+                ${role === 'SUB_LIDER' ? 'JOIN asignaciones a ON p.persona_id = a.persona_id' : ''}
+                WHERE p.candidato_id = $1 ${personaFilter}
                 GROUP BY s.sector_id, s.nombre
                 ORDER BY count DESC
                 LIMIT 5
@@ -188,16 +322,22 @@ router.get('/dashboard', authenticate, async (req, res, next) => {
 });
 
 // GET /lideres
-router.get('/lideres', async (req, res, next) => {
+router.get('/lideres', authenticate, async (req, res, next) => {
     try {
-        const query = `
+        const candidatoId = await getCandidatoId(req);
+        let query = `
       SELECT l.lider_id, p.nombres || ' ' || p.apellidos AS nombre_completo, l.meta_cantidad
       FROM lideres l
       JOIN personas p ON l.persona_id = p.persona_id
       JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
       WHERE el.nombre = 'Activo'
     `;
-        const result = await pool.query(query);
+        const values = [];
+        if (candidatoId) {
+            query += ` AND l.candidato_id = $1`;
+            values.push(candidatoId);
+        }
+        const result = await pool.query(query, values);
         res.json({ ok: true, data: result.rows });
     } catch (err) {
         next(err);
@@ -213,6 +353,9 @@ router.get('/fuentes', async (req, res, next) => {
         next(err);
     }
 });
+
+// --- Test Route ---
+router.post('/test-route', authenticate, (req, res) => res.json({ ok: true, msg: 'API test route works' }));
 
 // POST /registro
 router.post('/registro', authenticate, async (req, res, next) => {
@@ -244,30 +387,47 @@ router.post('/registro', authenticate, async (req, res, next) => {
         });
     }
 
+    // New Validations: Only text for names
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]+$/;
+    if (!nameRegex.test(nombres)) {
+        return res.status(400).json({ ok: false, code: 'INVALID_FORMAT', message: 'El nombre solo permite letras y espacios.' });
+    }
+    if (!nameRegex.test(apellidos)) {
+        return res.status(400).json({ ok: false, code: 'INVALID_FORMAT', message: 'El apellido solo permite letras y espacios.' });
+    }
+
+    // Email validation if present
+    if (email && email !== '') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+             return res.status(400).json({ ok: false, code: 'INVALID_FORMAT', message: 'El formato del email es inválido.' });
+        }
+    }
+
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // Checking duplicados de teléfono
-        const phoneCheck = await client.query('SELECT persona_id FROM personas WHERE telefono = $1', [telefono]);
+        // Checking duplicados de teléfono dentro del ámbito del candidato
+        const phoneCheck = await client.query('SELECT persona_id FROM personas WHERE telefono = $1 AND candidato_id = $2', [telefono, req.user.candidato_id]);
         if (phoneCheck.rows.length > 0) {
             await client.query('ROLLBACK');
             return res.status(409).json({
                 ok: false,
                 code: 'DUPLICATE_PHONE',
-                message: 'Ya existe una persona con este teléfono'
+                message: 'Ya existe una persona con este teléfono bajo este candidato'
             });
         }
 
-        // Checking duplicados de cédula
+        // Checking duplicados de cédula dentro del ámbito del candidato
         if (cedula && cedula !== '') {
-            const cedulaCheck = await client.query('SELECT persona_id FROM personas WHERE cedula = $1', [cedula]);
+            const cedulaCheck = await client.query('SELECT persona_id FROM personas WHERE cedula = $1 AND candidato_id = $2', [cedula, req.user.candidato_id]);
             if (cedulaCheck.rows.length > 0) {
                 await client.query('ROLLBACK');
                 return res.status(409).json({
                     ok: false,
                     code: 'DUPLICATE_CEDULA',
-                    message: 'Ya existe una persona con esta cédula'
+                    message: 'Ya existe una persona con esta cédula bajo este candidato'
                 });
             }
         }
@@ -278,11 +438,11 @@ router.post('/registro', authenticate, async (req, res, next) => {
 
         // Crear la persona
         const personaQuery = `
-      INSERT INTO personas (nombres, apellidos, cedula, telefono, email, sector_id, notas, estado_persona_id, mesa)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO personas (nombres, apellidos, cedula, telefono, email, sector_id, notas, estado_persona_id, mesa, candidato_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `;
-        const personaValues = [nombres, apellidos, cedula || null, telefono, email || null, sector_id, notas || null, estadoPersonaId, mesa || null];
+        const personaValues = [nombres, apellidos, cedula || null, telefono, email || null, sector_id, notas || null, estadoPersonaId, mesa || null, req.user.candidato_id];
         const personaRes = await client.query(personaQuery, personaValues);
         const nuevaPersona = personaRes.rows[0];
 
@@ -292,11 +452,11 @@ router.post('/registro', authenticate, async (req, res, next) => {
 
         // Crear la asignación
         const asignacionQuery = `
-      INSERT INTO asignaciones (lider_id, persona_id, fuente_id, estado_asignacion_id)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO asignaciones (lider_id, persona_id, fuente_id, estado_asignacion_id, candidato_id)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
-        const asignacionValues = [lider_id, nuevaPersona.persona_id, fuente_id, estadoAsignacionId];
+        const asignacionValues = [lider_id, nuevaPersona.persona_id, fuente_id, estadoAsignacionId, req.user.candidato_id];
         const asignacionRes = await client.query(asignacionQuery, asignacionValues);
         const nuevaAsignacion = asignacionRes.rows[0];
 
@@ -336,7 +496,7 @@ router.get('/lideres-resumen', authenticate, async (req, res, next) => {
             JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
             JOIN nivel_lider nl ON l.nivel_lider_id = nl.nivel_lider_id
             LEFT JOIN (
-                asignaciones a 
+                asignaciones a
                 JOIN estado_asignacion ea ON a.estado_asignacion_id = ea.estado_asignacion_id AND ea.nombre = 'Activa'
             ) ON l.lider_id = a.lider_id
             WHERE 1=1
@@ -344,6 +504,14 @@ router.get('/lideres-resumen', authenticate, async (req, res, next) => {
 
         let values = [];
         let paramCount = 1;
+
+        // ── Candidato Scope ───────────────────────────────────────────────────
+        const candidatoId = await getCandidatoId(req);
+        if (candidatoId) {
+            basePath += ` AND l.candidato_id = $${paramCount}`;
+            values.push(candidatoId);
+            paramCount++;
+        }
 
         // ── RBAC Scope ───────────────────────────────────────────────────────
         const scope = await buildLiderScope(req, values, paramCount);
@@ -377,24 +545,30 @@ router.get('/lideres-resumen', authenticate, async (req, res, next) => {
         const total = parseInt(countResult.rows[0].count, 10);
 
         const dataQuery = `
-            SELECT 
+            SELECT
                 l.lider_id,
+                l.lider_padre_id,
                 p.nombres,
                 p.apellidos,
                 p.nombres || ' ' || p.apellidos AS nombre_completo,
                 p.telefono,
+                p.cedula,
+                s.sector_id,
                 s.nombre AS sector_nombre,
+                el.estado_lider_id,
+                nl.nivel_lider_id,
                 l.meta_cantidad,
                 COUNT(a.asignacion_id) as total_reclutados,
-                CASE 
+                CASE
                     WHEN l.meta_cantidad > 0 THEN ROUND((COUNT(a.asignacion_id)::numeric / l.meta_cantidad::numeric) * 100, 2)
-                    ELSE 0 
+                    ELSE 0
                 END AS porcentaje_cumplimiento,
                 el.nombre AS estado_nombre,
                 nl.nombre AS nivel_nombre
             ${basePath}
-            GROUP BY 
-                l.lider_id, p.nombres, p.apellidos, p.telefono, s.nombre, l.meta_cantidad, el.nombre, nl.nombre
+            GROUP BY
+                l.lider_id, l.lider_padre_id, p.nombres, p.apellidos, p.telefono, p.cedula,
+                s.sector_id, s.nombre, el.estado_lider_id, el.nombre, nl.nivel_lider_id, nl.nombre, l.meta_cantidad
             ORDER BY total_reclutados DESC
             LIMIT $${paramCount} OFFSET $${paramCount + 1}
         `;
@@ -515,8 +689,9 @@ router.get('/lideres-resumen/export', authenticate, async (req, res, next) => {
 });
 
 // GET /ultimo-registro
-router.get('/ultimo-registro', async (req, res, next) => {
+router.get('/ultimo-registro', authenticate, async (req, res, next) => {
     try {
+        const { scopeClause, values } = await buildLiderScope(req);
         const query = `
             SELECT 
                 p.nombres, p.apellidos, p.telefono,
@@ -525,13 +700,14 @@ router.get('/ultimo-registro', async (req, res, next) => {
                 l_p.nombres || ' ' || l_p.apellidos AS lider_nombre
             FROM personas p
             LEFT JOIN sectores s ON p.sector_id = s.sector_id
-            LEFT JOIN asignaciones a ON p.persona_id = a.persona_id
-            LEFT JOIN lideres l ON a.lider_id = l.lider_id
+            JOIN asignaciones a ON p.persona_id = a.persona_id
+            JOIN lideres l ON a.lider_id = l.lider_id
             LEFT JOIN personas l_p ON l.persona_id = l_p.persona_id
+            WHERE 1=1 ${scopeClause}
             ORDER BY p.fecha_registro DESC
             LIMIT 1
         `;
-        const result = await pool.query(query);
+        const result = await pool.query(query, values);
         res.json({ ok: true, data: result.rows[0] || null });
     } catch (err) {
         next(err);
@@ -761,75 +937,88 @@ router.get('/lideres/:id/personas', authenticate, async (req, res, next) => {
 });
 
 // PUT /lideres/:id
-router.put('/lideres/:id', authenticate, async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { meta_cantidad, estado_lider_id, nivel_lider_id, lider_padre_id, nombres, apellidos, telefono, sector_id } = req.body;
-
-        await pool.query('BEGIN');
-
-        // RBAC Check
-        if (req.user.rol_nombre === 'LIDER') {
-            if (id !== req.user.lider_id) {
-                await pool.query('ROLLBACK');
-                return res.status(403).json({ ok: false, code: 'FORBIDDEN_SCOPE', message: 'Solo puedes editar tu propio perfil' });
-            }
-            if (estado_lider_id || nivel_lider_id || lider_padre_id !== undefined) {
-                await pool.query('ROLLBACK');
-                return res.status(403).json({ ok: false, code: 'FORBIDDEN_ACTION', message: 'Como líder no puedes modificar campos de estructura' });
-            }
-        }
-
-        // 1. Update Persona if fields provided
-        const personaUpdates = [];
-        const personaValues = [];
-        let pParamCount = 1;
-
-        if (nombres) { personaUpdates.push(`nombres = $${pParamCount}`); personaValues.push(nombres); pParamCount++; }
-        if (apellidos) { personaUpdates.push(`apellidos = $${pParamCount}`); personaValues.push(apellidos); pParamCount++; }
-        if (telefono) { personaUpdates.push(`telefono = $${pParamCount}`); personaValues.push(telefono); pParamCount++; }
-        if (sector_id !== undefined) { personaUpdates.push(`sector_id = $${pParamCount}`); personaValues.push(sector_id); pParamCount++; }
-
-        if (personaUpdates.length > 0) {
-            personaValues.push(id); // Using lider_id to find persona via JOIN or subquery
-            const updatePersonaQuery = `
-                UPDATE personas
-                SET ${personaUpdates.join(', ')}
-                WHERE persona_id = (SELECT persona_id FROM lideres WHERE lider_id = $${pParamCount})
-            `;
-            await pool.query(updatePersonaQuery, personaValues);
-        }
-
-        // 2. Update Líder
-        const updates = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (meta_cantidad !== undefined) {
-            if (meta_cantidad < 1) {
-                await pool.query('ROLLBACK');
-                return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'meta_cantidad debe ser >= 1' });
-            }
-            updates.push(`meta_cantidad = $${paramCount}`);
-            values.push(meta_cantidad);
-            paramCount++;
-        }
-        if (estado_lider_id) { updates.push(`estado_lider_id = $${paramCount}`); values.push(estado_lider_id); paramCount++; }
-        if (nivel_lider_id) { updates.push(`nivel_lider_id = $${paramCount}`); values.push(nivel_lider_id); paramCount++; }
-        if (lider_padre_id !== undefined) { updates.push(`lider_padre_id = $${paramCount}`); values.push(lider_padre_id); paramCount++; }
-
-        if (updates.length > 0) {
-            values.push(id);
-            const query = `UPDATE lideres SET ${updates.join(', ')} WHERE lider_id = $${paramCount} RETURNING *`;
-            await pool.query(query, values);
-        }
-
-        await pool.query('COMMIT');
-        res.json({ ok: true, message: 'Líder actualizado correctamente' });
-
-    } catch (err) {
-        next(err);
+router.put('/lideres/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const rolRaw = req.user?.rol_nombre || '';
+    const rolNorm = rolRaw.toUpperCase().replace(/[-_\s]/g, '');
+    const esAdmin = rolNorm === 'ADMIN' || rolNorm === 'SUPERADMIN';
+    const esCoord = rolNorm === 'COORDINADOR';
+    const esSubLider = rolNorm.includes('LIDER') || rolNorm.includes('SUBLIDER');
+    console.log(`[PUT /lideres/:id] id=${id} rolRaw="${rolRaw}" rolNorm="${rolNorm}" esAdmin=${esAdmin} esCoord=${esCoord} esSubLider=${esSubLider}`);
+    if (!esAdmin && !esCoord && !esSubLider) {
+      return res.status(403).json({ ok: false, message: 'Sin permisos' });
     }
+    if (!esAdmin && !esCoord) {
+      const miLiderId = req.user.lider_id;
+      console.log(`[PUT /lideres/:id] SubLider check: miLiderId=${miLiderId}`);
+      if (miLiderId) {
+        const targetRes = await pool.query(
+          'SELECT lider_id, lider_padre_id FROM lideres WHERE lider_id = $1',
+          [id]
+        );
+        const target = targetRes.rows[0];
+        console.log(`[PUT /lideres/:id] target=${JSON.stringify(target)}`);
+        const esPropio = target?.lider_id === miLiderId;
+        const esSubordinado = target?.lider_padre_id === miLiderId;
+        console.log(`[PUT /lideres/:id] esPropio=${esPropio} esSubordinado=${esSubordinado}`);
+        if (!esPropio && !esSubordinado) {
+          return res.status(403).json({ ok: false, message: 'Solo puedes editar líderes bajo tu cargo' });
+        }
+      }
+    }
+    const {
+      nombres, apellidos, telefono, sector_id,
+      meta_cantidad, estado_lider_id, nivel_lider_id
+    } = req.body;
+
+    // Actualizar persona (nombres, apellidos, telefono, sector_id viven en personas)
+    const personaUpdates = [];
+    const personaValues = [];
+    let pIdx = 1;
+    if (nombres    !== undefined) { personaUpdates.push(`nombres = $${pIdx++}`);   personaValues.push(nombres); }
+    if (apellidos  !== undefined) { personaUpdates.push(`apellidos = $${pIdx++}`); personaValues.push(apellidos); }
+    if (telefono   !== undefined) { personaUpdates.push(`telefono = $${pIdx++}`);  personaValues.push(telefono); }
+    if (sector_id  !== undefined) { personaUpdates.push(`sector_id = $${pIdx++}`); personaValues.push(sector_id); }
+    if (personaUpdates.length > 0) {
+      personaValues.push(id);
+      await pool.query(
+        `UPDATE personas SET ${personaUpdates.join(', ')}
+         WHERE persona_id = (SELECT persona_id FROM lideres WHERE lider_id = $${pIdx})`,
+        personaValues
+      );
+    }
+
+    // Actualizar lideres (meta_cantidad, estado_lider_id, nivel_lider_id)
+    const liderUpdates = [];
+    const liderValues = [];
+    let lIdx = 1;
+    if (meta_cantidad    !== undefined) { liderUpdates.push(`meta_cantidad = $${lIdx++}`);    liderValues.push(meta_cantidad); }
+    if (estado_lider_id  !== undefined) { liderUpdates.push(`estado_lider_id = $${lIdx++}`);  liderValues.push(estado_lider_id); }
+    if (nivel_lider_id   !== undefined) { liderUpdates.push(`nivel_lider_id = $${lIdx++}`);   liderValues.push(nivel_lider_id); }
+
+    let liderRow = null;
+    if (liderUpdates.length > 0) {
+      liderValues.push(id);
+      const liderRes = await pool.query(
+        `UPDATE lideres SET ${liderUpdates.join(', ')} WHERE lider_id = $${lIdx} RETURNING *`,
+        liderValues
+      );
+      liderRow = liderRes.rows[0] || null;
+    } else {
+      const r = await pool.query('SELECT * FROM lideres WHERE lider_id = $1', [id]);
+      liderRow = r.rows[0] || null;
+    }
+
+    if (!liderRow) {
+      return res.status(404).json({ ok: false, message: 'Líder no encontrado' });
+    }
+
+    res.json({ ok: true, data: liderRow, message: 'Líder actualizado correctamente' });
+  } catch (err) {
+    console.error('[PUT /lideres/:id] error:', err.message);
+    res.status(500).json({ ok: false, message: err.message });
+  }
 });
 
 // POST /lideres
@@ -896,12 +1085,33 @@ router.get('/personas', authenticate, async (req, res, next) => {
             WHERE 1=1
         `;
 
-        // ── RBAC Scope — para LIDER: solo personas de su árbol ──────────────
-        if (req.user.rol_nombre === 'LIDER') {
-            const treeIds = await getLiderTree(req.user.lider_id);
-            basePath += ` AND a.lider_id = ANY($${paramCount})`;
-            values.push(treeIds);
+        // ── Multi-tenant: filtro por candidato_id ────────────────────────────
+        // Super Admin (candidato_id nulo) → ve todo
+        // Admin de candidato y demás roles → filtra por su candidato
+        const candidatoIdPersonas = await getCandidatoId(req);
+        if (candidatoIdPersonas) {
+            basePath += ` AND p.candidato_id = $${paramCount}`;
+            values.push(candidatoIdPersonas);
             paramCount++;
+        }
+
+        // ── RBAC Scope ────────────────────────────────────────────────────────
+        // ADMIN        → sin filtro adicional (ya filtrado por candidato si aplica)
+        // COORDINADOR  → ve todas las personas de su candidato (sin filtro de árbol)
+        // SUB_LIDER    → solo personas asignadas a su árbol de líderes
+        const rolePersonas = req.user.rol_nombre;
+        if (rolePersonas === 'SUB_LIDER') {
+            if (!req.user.lider_id) {
+                basePath += ' AND 1=0'; // Sin lider_id asignado → no ve nada
+            } else {
+                const treeIds = await getLiderTree(req.user.lider_id);
+                basePath += ` AND a.lider_id = ANY($${paramCount})`;
+                values.push(treeIds);
+                paramCount++;
+            }
+        } else if (rolePersonas !== 'ADMIN' && rolePersonas !== 'COORDINADOR') {
+            // Rol no reconocido: sin acceso
+            basePath += ' AND 1=0';
         }
 
         if (q) {
@@ -963,7 +1173,8 @@ router.get('/personas', authenticate, async (req, res, next) => {
 });
 
 // POST /lideres/crear (Transaccional — Modo EXISTENTE | NUEVO)
-router.post('/lideres/crear', async (req, res, next) => {
+router.post('/lideres/crear', authenticate, async (req, res, next) => {
+    console.log('[POST /lideres/crear] body:', JSON.stringify(req.body));
     const client = await pool.connect();
     try {
         const { modo, persona_existente, persona_nueva, lider, usuario } = req.body;
@@ -1012,7 +1223,11 @@ router.post('/lideres/crear', async (req, res, next) => {
 
         // ── 4. Validar usuario (si aplica) ────────────────────────────────────
         if (usuario?.crear) {
-            if (!usuario.email_login && !usuario.username) {
+            const rolParaLogin = usuario.rol_nombre || 'Sub-Líder';
+            // 'Sub-Líder' (con acento) y sus variantes usan cédula como login
+            const usaCedula = ['Lider', 'Sub-Lider', 'Sub-Líder', 'SUB_LIDER', 'SUBLIDER'].includes(rolParaLogin)
+                || rolParaLogin.toUpperCase().replace(/[-_\s]/g,'').includes('LIDER');
+            if (!usuario.email_login && !usuario.username && !usaCedula) {
                 return res.status(400).json({
                     ok: false, code: 'VALIDATION_ERROR',
                     message: 'Debe proveer email_login o username para crear el usuario'
@@ -1025,40 +1240,43 @@ router.post('/lideres/crear', async (req, res, next) => {
         let personaData; // { persona_id, nombres, apellidos, ... }
 
         if (modo === 'EXISTENTE') {
-            // ── 5A. Verificar que la persona existe ───────────────────────────
+            // ── 5A. Verificar que la persona existe y pertenece al candidato ──
             const personaCheck = await client.query(
                 `SELECT p.persona_id, p.nombres, p.apellidos, p.cedula, p.telefono, p.email,
                         p.sector_id, p.notas, p.fecha_registro, p.estado_persona_id, p.mesa
-                 FROM personas p WHERE p.persona_id = $1`,
-                [persona_existente.persona_id]
+                 FROM personas p WHERE p.persona_id = $1 AND p.candidato_id = $2`,
+                [persona_existente.persona_id, req.user.candidato_id]
             );
             if (personaCheck.rows.length === 0) {
                 await client.query('ROLLBACK');
                 return res.status(404).json({
                     ok: false, code: 'PERSONA_NOT_FOUND',
-                    message: 'La persona no existe'
+                    message: 'La persona no existe en su registro de candidato'
                 });
             }
             personaData = personaCheck.rows[0];
 
         } else { // NUEVO
-            // ── 5B. Verificar duplicados (teléfono / cédula) ──────────────────
-            let dupQ = 'SELECT telefono, cedula FROM personas WHERE telefono = $1';
+            // ── 5B. Verificar duplicados (teléfono / cédula) dentro del candidato ──
+            let dupQ = 'SELECT telefono, cedula FROM personas WHERE (telefono = $1';
             let dupVals = [persona_nueva.telefono];
             if (persona_nueva.cedula) {
                 dupQ += ' OR (cedula IS NOT NULL AND cedula = $2)';
                 dupVals.push(persona_nueva.cedula);
             }
+            dupQ += ') AND candidato_id = $' + (dupVals.length + 1);
+            dupVals.push(req.user?.candidato_id);
+            
             const dupRes = await client.query(dupQ, dupVals);
             if (dupRes.rows.length > 0) {
                 await client.query('ROLLBACK');
                 const hasPhone = dupRes.rows.some(r => r.telefono === persona_nueva.telefono);
                 const hasCedula = persona_nueva.cedula && dupRes.rows.some(r => r.cedula === persona_nueva.cedula);
-                if (hasPhone) return res.status(409).json({ ok: false, code: 'DUPLICATE_PHONE', message: 'El teléfono ya está registrado' });
-                if (hasCedula) return res.status(409).json({ ok: false, code: 'DUPLICATE_CEDULA', message: 'La cédula ya está registrada' });
+                if (hasPhone) return res.status(409).json({ ok: false, code: 'DUPLICATE_PHONE', message: 'El teléfono ya está registrado ante este candidato' });
+                if (hasCedula) return res.status(409).json({ ok: false, code: 'DUPLICATE_CEDULA', message: 'La cédula ya está registrada ante este candidato' });
             }
 
-            // ── 5C. Insertar persona nueva ────────────────────────────────────
+            // ── 5C. Insertar persona nueva vinculada al candidato ──────────────
             const estPersRes = await client.query(
                 "SELECT estado_persona_id FROM estado_persona WHERE nombre = 'Activo' LIMIT 1"
             );
@@ -1091,13 +1309,14 @@ router.post('/lideres/crear', async (req, res, next) => {
 
         // ── 7. Insertar en lideres ────────────────────────────────────────────
         const codigoLider = lider.codigo_lider || `LDR-${Date.now().toString().slice(-6)}`;
+        const candidatoId = await getCandidatoId(req);
         const liderIns = await client.query(
-            `INSERT INTO lideres (persona_id, meta_cantidad, nivel_lider_id, estado_lider_id, lider_padre_id, codigo_lider)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            `INSERT INTO lideres (persona_id, meta_cantidad, nivel_lider_id, estado_lider_id, lider_padre_id, codigo_lider, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [
                 personaData.persona_id, metaCantidad,
                 lider.nivel_lider_id, lider.estado_lider_id,
-                lider.lider_padre_id || null, codigoLider
+                lider.lider_padre_id || null, codigoLider, candidatoId
             ]
         );
         const liderCreated = liderIns.rows[0];
@@ -1119,10 +1338,15 @@ router.post('/lideres/crear', async (req, res, next) => {
                 });
             }
 
-            // Lookup rol
-            const rolNombre = usuario.rol_nombre || 'Lider';
+            // Lookup rol — tolerante a acentos y variantes (Sub-Líder / Sub-Lider)
+            const rolNombre = usuario.rol_nombre || 'Sub-Líder';
             const rolRes = await client.query(
-                'SELECT rol_id FROM roles WHERE nombre = $1 LIMIT 1', [rolNombre]
+                `SELECT rol_id FROM roles
+                 WHERE nombre = $1
+                    OR nombre ILIKE $2
+                    OR LOWER(REPLACE(REPLACE(nombre,'í','i'),'é','e')) = LOWER(REPLACE(REPLACE($1,'í','i'),'é','e'))
+                 LIMIT 1`,
+                [rolNombre, 'Sub-L_der']
             );
             if (rolRes.rows.length === 0) {
                 await client.query('ROLLBACK');
@@ -1147,17 +1371,62 @@ router.post('/lideres/crear', async (req, res, next) => {
             }
             const password_hash = plainPassword ? await bcrypt.hash(plainPassword, 12) : null;
 
+            // Para Sub-Lider: login = cédula (como username), no email_login
+            // Esto evita colisiones con el campo email_login único
+            const esRolCedula = ['Sub-Líder', 'Sub-Lider', 'Lider', 'SUB_LIDER', 'SUBLIDER'].includes(rolNombre)
+                || rolNombre.toUpperCase().replace(/[-_\s]/g,'').includes('LIDER');
+            let emailLoginFinal = null;
+            let usernameFinal = usuario.username || null;
+
+            if (esRolCedula) {
+                // Sub-Líder usa cédula como username — no email_login
+                if (!personaData.cedula && !usernameFinal) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        ok: false, code: 'VALIDATION_ERROR',
+                        message: 'No se pudo determinar el login: la persona no tiene cédula registrada y no se proveyó username'
+                    });
+                }
+                usernameFinal = usernameFinal || personaData.cedula;
+            } else {
+                emailLoginFinal = usuario.email_login || null;
+                if (!emailLoginFinal && !usernameFinal) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        ok: false, code: 'VALIDATION_ERROR',
+                        message: 'Debe proveer email_login o username para crear el acceso de usuario'
+                    });
+                }
+            }
+
+            // Verificar que el login no esté en uso
+            const loginCheck = await client.query(
+                'SELECT usuario_id FROM usuarios WHERE (username = $1 AND $1 IS NOT NULL) OR (email_login = $2 AND $2 IS NOT NULL) LIMIT 1',
+                [usernameFinal, emailLoginFinal]
+            );
+            if (loginCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    ok: false, code: 'DUPLICATE_LOGIN',
+                    message: esRolCedula
+                        ? `Ya existe un usuario con la cédula "${usernameFinal}" como login`
+                        : `El email o username "${emailLoginFinal || usernameFinal}" ya está en uso`
+                });
+            }
+
+            const candidatoIdForUser = req.user?.candidato_id || null;
             const userIns = await client.query(
-                `INSERT INTO usuarios (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id)
-                 VALUES ($1, $2, $3, $4, $5, $6)
+                `INSERT INTO usuarios (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id, candidato_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                  RETURNING usuario_id, persona_id, email_login, username`,
                 [
                     personaData.persona_id,
-                    usuario.email_login || null,
-                    usuario.username || null,
+                    emailLoginFinal,
+                    usernameFinal,
                     password_hash,
                     rolRes.rows[0].rol_id,
-                    estadoURes.rows[0].estado_usuario_id
+                    estadoURes.rows[0].estado_usuario_id,
+                    candidatoIdForUser
                 ]
             );
             usuarioCreated = userIns.rows[0];
@@ -1201,14 +1470,23 @@ router.post('/lideres/crear', async (req, res, next) => {
     }
 });
 
-// GET /personas/buscar?q= — Búsqueda rápida (va ANTES de /personas/:id)
-router.get('/personas/buscar', async (req, res, next) => {
+// GET /personas/buscar?q= — Búsqueda rápida
+router.get('/personas/buscar', authenticate, async (req, res, next) => {
     try {
         const { q } = req.query;
         if (!q || q.trim().length === 0) {
             return res.json({ ok: true, data: [] });
         }
         const term = `%${q.trim()}%`;
+        
+        let scopeClause = '';
+        let scopeValues = [];
+        if (req.user.rol_nombre !== 'ADMIN') {
+            const treeIds = await getLiderTree(req.user.lider_id);
+            scopeClause = ' AND (EXISTS (SELECT 1 FROM asignaciones a2 WHERE a2.persona_id = p.persona_id AND a2.lider_id = ANY($3)))';
+            scopeValues = [treeIds];
+        }
+
         const result = await pool.query(
             `SELECT
                 p.persona_id,
@@ -1220,11 +1498,12 @@ router.get('/personas/buscar', async (req, res, next) => {
              FROM personas p
              LEFT JOIN sectores s ON p.sector_id = s.sector_id
              WHERE
-                p.nombres    ILIKE $1 OR
+                (p.nombres    ILIKE $1 OR
                 p.apellidos  ILIKE $1 OR
                 (p.nombres || ' ' || p.apellidos) ILIKE $1 OR
                 p.telefono   ILIKE $1 OR
-                p.cedula     ILIKE $1
+                p.cedula     ILIKE $1)
+                ${scopeClause}
              ORDER BY
                 CASE
                     WHEN (p.nombres || ' ' || p.apellidos) ILIKE $2 THEN 0
@@ -1234,7 +1513,7 @@ router.get('/personas/buscar', async (req, res, next) => {
                 END,
                 p.nombres, p.apellidos
              LIMIT 20`,
-            [term, q.trim()]
+            [term, q.trim(), ...scopeValues]
         );
         res.json({ ok: true, data: result.rows });
     } catch (err) {
@@ -1246,12 +1525,26 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        // ── RBAC Scope — para LIDER: verificar que la persona está en su árbol
-        if (req.user.rol_nombre === 'LIDER') {
+        // ── RBAC Scope ────────────────────────────────────────────────────
+        const rolNormP = (req.user?.rol_nombre || '').toUpperCase().replace(/[-_\s]/g, '');
+
+        if (rolNormP === 'COORDINADOR') {
+            // Coordinador: solo personas de su candidato
+            const candidatoScope = await getCandidatoId(req);
+            if (candidatoScope) {
+                const check = await pool.query(
+                    'SELECT 1 FROM personas WHERE persona_id = $1 AND candidato_id = $2 LIMIT 1',
+                    [id, candidatoScope]
+                );
+                if (check.rows.length === 0) {
+                    return res.status(403).json({ ok: false, code: 'FORBIDDEN_SCOPE', message: 'No tienes acceso a esta persona' });
+                }
+            }
+        } else if (rolNormP !== 'ADMIN') {
+            // Sub-Líder: verificar árbol de líderes
             const treeIds = await getLiderTree(req.user.lider_id);
             const assignCheck = await pool.query(
                 `SELECT 1 FROM asignaciones a
-                 JOIN estado_asignacion ea ON a.estado_asignacion_id = ea.estado_asignacion_id
                  WHERE a.persona_id = $1 AND a.lider_id = ANY($2)
                  LIMIT 1`,
                 [id, treeIds]
@@ -1263,6 +1556,7 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
                 });
             }
         }
+        // ADMIN: sin filtro
 
         // ── 1. Persona base (sin joins que dupliquen filas) ──────────────────
         const personaQuery = `
@@ -1383,71 +1677,6 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
     }
 });
 
-// GET /api/usuarios/lista — Lista de usuarios del sistema (scope por candidato_id)
-router.get('/usuarios/lista', authenticate, async (req, res, next) => {
-    try {
-        const SUPER = '00000000-0000-0000-0000-000000000001';
-        const isSuperAdmin = req.user?.candidato_id === SUPER;
-        let query, params;
-        if (isSuperAdmin) {
-            query = `
-                SELECT u.usuario_id, p.nombres||' '||p.apellidos AS nombre_completo,
-                       p.cedula, u.email_login, u.username, r.nombre AS rol_nombre,
-                       c.nombre AS candidato, u.fecha_creacion,
-                       CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END AS activo
-                FROM usuarios u
-                JOIN personas p ON u.persona_id = p.persona_id
-                JOIN roles r ON u.rol_id = r.rol_id
-                LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
-                LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
-                ORDER BY c.nombre NULLS LAST, r.nombre, p.apellidos`;
-            params = [];
-        } else {
-            query = `
-                SELECT u.usuario_id, p.nombres||' '||p.apellidos AS nombre_completo,
-                       p.cedula, u.email_login, u.username, r.nombre AS rol_nombre,
-                       c.nombre AS candidato, u.fecha_creacion,
-                       CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END AS activo
-                FROM usuarios u
-                JOIN personas p ON u.persona_id = p.persona_id
-                JOIN roles r ON u.rol_id = r.rol_id
-                LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
-                LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
-                WHERE u.candidato_id = $1
-                ORDER BY r.nombre, p.apellidos`;
-            params = [req.user.candidato_id];
-        }
-        const result = await pool.query(query, params);
-        res.json({ ok: true, data: result.rows });
-    } catch (err) { next(err); }
-});
-
-// PUT /api/usuarios/cambiar-password — El usuario autenticado cambia su propia contraseña
-router.put('/usuarios/cambiar-password', authenticate, async (req, res, next) => {
-    try {
-        const { password_actual, password_nuevo } = req.body;
-        if (!password_actual || !password_nuevo) {
-            return res.status(400).json({ ok: false, message: 'Faltan campos requeridos' });
-        }
-        if (password_nuevo.length < 8) {
-            return res.status(400).json({ ok: false, message: 'La nueva contraseña debe tener al menos 8 caracteres' });
-        }
-        const userRes = await pool.query(
-            'SELECT password_hash FROM usuarios WHERE usuario_id = $1', [req.user.usuario_id]
-        );
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ ok: false, message: 'Usuario no encontrado' });
-        }
-        const valid = await bcrypt.compare(password_actual, userRes.rows[0].password_hash);
-        if (!valid) {
-            return res.status(400).json({ ok: false, message: 'La contraseña actual es incorrecta' });
-        }
-        const newHash = await bcrypt.hash(password_nuevo, 10);
-        await pool.query('UPDATE usuarios SET password_hash = $1 WHERE usuario_id = $2', [newHash, req.user.usuario_id]);
-        res.json({ ok: true, message: 'Contraseña actualizada correctamente' });
-    } catch (err) { next(err); }
-});
-
 // POST /api/usuarios — Crear acceso (usuario) para una persona
 router.post('/usuarios', async (req, res, next) => {
     const client = await pool.connect();
@@ -1466,23 +1695,25 @@ router.post('/usuarios', async (req, res, next) => {
         if (!persona_id) {
             return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'persona_id es obligatorio' });
         }
-        if (!email_login && !username) {
-            return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'Debe proveer al menos email_login o username' });
-        }
         if (!rol_nombre) {
             return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'rol_nombre es obligatorio' });
+        }
+        const esRolCedula = ['Lider', 'Sub-Lider'].includes(rol_nombre);
+        if (!email_login && !username && !esRolCedula) {
+            return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'Debe proveer al menos email_login o username' });
         }
 
         await client.query('BEGIN');
 
         // ── Verificar que la persona existe ──────────────────────────────────
         const personaCheck = await client.query(
-            'SELECT persona_id FROM personas WHERE persona_id = $1', [persona_id]
+            'SELECT persona_id, cedula FROM personas WHERE persona_id = $1', [persona_id]
         );
         if (personaCheck.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ ok: false, code: 'PERSONA_NOT_FOUND', message: 'La persona no existe' });
         }
+        const personaCedula = personaCheck.rows[0].cedula;
 
         // ── Verificar que no existe ya un usuario para esta persona ──────────
         const userCheck = await client.query(
@@ -1527,20 +1758,32 @@ router.post('/usuarios', async (req, res, next) => {
             password_hash = await bcrypt.hash(plainPassword, 12);
         }
 
+        // Para Lider/Sub-Lider sin email_login ni username, usar cédula como login
+        const emailLoginFinal = email_login || (esRolCedula ? personaCedula : null);
+        if (!emailLoginFinal && !username) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                ok: false, code: 'VALIDATION_ERROR',
+                message: 'No se pudo determinar el login: la persona no tiene cédula registrada'
+            });
+        }
+
         // ── Insertar usuario ────────────────────────────────────────────────
+        const candidatoId = await getCandidatoId(req);
         const insertQuery = `
             INSERT INTO usuarios
-                (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id, candidato_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING usuario_id, persona_id, email_login, username
         `;
         const insertRes = await client.query(insertQuery, [
             persona_id,
-            email_login || null,
+            emailLoginFinal,
             username || null,
             password_hash,
             rol_id,
-            estado_usuario_id
+            estado_usuario_id,
+            candidatoId
         ]);
         const creado = insertRes.rows[0];
 
@@ -1607,187 +1850,372 @@ router.post('/usuarios/:usuario_id/reset-password', async (req, res, next) => {
     }
 });
 
-// ─── Candidatos CRUD (solo ADMIN) ────────────────────────────────────────────
-router.get('/candidatos', authenticate, async (req, res, next) => {
+// POST /api/usuarios/reset-by-cedula  — Reset contraseña buscando por cédula de persona
+router.post('/usuarios/reset-by-cedula', authenticate, async (req, res, next) => {
     try {
-        const result = await pool.query('SELECT * FROM candidatos ORDER BY fecha_creacion ASC');
-        res.json({ ok: true, data: result.rows });
-    } catch (err) { next(err); }
-});
-
-router.post('/candidatos', authenticate, async (req, res, next) => {
-    try {
-        const { nombre, descripcion } = req.body;
-        if (!nombre?.trim()) return res.status(400).json({ ok: false, message: 'nombre es requerido' });
-        const r = await pool.query(
-            'INSERT INTO candidatos (nombre, descripcion) VALUES ($1, $2) RETURNING *',
-            [nombre.trim(), descripcion?.trim() || null]
-        );
-        res.status(201).json({ ok: true, data: r.rows[0] });
-    } catch (err) { next(err); }
-});
-
-router.patch('/candidatos/:id', authenticate, async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const { activo, nombre, descripcion } = req.body;
-
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            // 1. Actualizar candidato
-            const r = await client.query(
-                `UPDATE candidatos SET
-                    activo      = COALESCE($1, activo),
-                    nombre      = COALESCE($2, nombre),
-                    descripcion = COALESCE($3, descripcion)
-                 WHERE candidato_id = $4 RETURNING *`,
-                [activo ?? null, nombre?.trim() ?? null, descripcion?.trim() ?? null, id]
-            );
-            if (r.rows.length === 0) {
-                await client.query('ROLLBACK');
-                return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
-            }
-
-            // 2. Cascade: si se cambió el campo activo, sincronizar estado de usuarios
-            if (typeof activo === 'boolean') {
-                const estadoNombre = activo ? 'Activo' : 'Bloqueado';
-                await client.query(
-                    `UPDATE usuarios
-                     SET estado_usuario_id = (
-                         SELECT estado_usuario_id FROM estado_usuario WHERE nombre = $1 LIMIT 1
-                     )
-                     WHERE candidato_id = $2`,
-                    [estadoNombre, id]
-                );
-            }
-
-            await client.query('COMMIT');
-            res.json({ ok: true, data: r.rows[0] });
-        } catch (txErr) {
-            await client.query('ROLLBACK');
-            throw txErr;
-        } finally {
-            client.release();
+        const rolNorm = (req.user?.rol_nombre || '').toUpperCase().replace(/[-_\s]/g, '');
+        if (rolNorm !== 'ADMIN') {
+            return res.status(403).json({ ok: false, message: 'Solo el administrador puede resetear contraseñas' });
         }
-    } catch (err) { next(err); }
+
+        const { cedula } = req.body;
+        if (!cedula || !cedula.trim()) {
+            return res.status(400).json({ ok: false, message: 'La cédula es requerida' });
+        }
+
+        const userRes = await pool.query(
+            `SELECT u.usuario_id FROM usuarios u
+             JOIN personas p ON u.persona_id = p.persona_id
+             JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
+             WHERE p.cedula = $1 AND LOWER(eu.nombre) = 'activo'
+             LIMIT 1`,
+            [cedula.trim()]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ ok: false, message: 'No existe usuario activo con esa cédula' });
+        }
+
+        const usuario_id = userRes.rows[0].usuario_id;
+        const password_default = 'Clave1234!';
+        const password_hash = await bcrypt.hash(password_default, 10);
+
+        await pool.query(
+            'UPDATE usuarios SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE usuario_id = $2',
+            [password_hash, usuario_id]
+        );
+
+        return res.json({ ok: true, message: 'Contraseña restablecida a Clave1234!' });
+
+    } catch (err) {
+        next(err);
+    }
 });
 
-// POST /api/candidatos/:id/admin — Crear persona + usuario Admin para un candidato
-router.post('/candidatos/:id/admin', authenticate, async (req, res, next) => {
+// POST /lideres/hierarchy
+// Crea un nuevo líder bajo un padre, validando la profundidad jerárquica
+router.post('/lideres/hierarchy', authenticate, async (req, res, next) => {
     const client = await pool.connect();
     try {
-        const { id: candidato_id } = req.params;
-        const { nombres, apellidos, cedula, telefono, email_login, password } = req.body;
+        const { 
+            modo = 'NUEVO', // 'NUEVO' | 'EXISTENTE'
+            persona_existente,
+            persona_nueva,
+            lider_padre_id, 
+            meta_cantidad = 10,
+            usuario
+        } = req.body;
 
-        // Validaciones
-        if (!nombres?.trim())     return res.status(400).json({ ok: false, message: 'nombres es requerido' });
-        if (!apellidos?.trim())   return res.status(400).json({ ok: false, message: 'apellidos es requerido' });
-        if (!cedula?.trim())      return res.status(400).json({ ok: false, message: 'cedula es requerida' });
-        if (!telefono?.trim())    return res.status(400).json({ ok: false, message: 'telefono es requerido' });
-        if (!email_login?.trim()) return res.status(400).json({ ok: false, message: 'email_login es requerido' });
-        if (!password?.trim())    return res.status(400).json({ ok: false, message: 'password es requerido' });
+        // 1. Validaciones básicas de jerarquía
+        if (!lider_padre_id) {
+            return res.status(400).json({ ok: false, message: 'lider_padre_id es obligatorio' });
+        }
 
-        // Verificar que el candidato existe
-        const candCheck = await client.query('SELECT candidato_id FROM candidatos WHERE candidato_id = $1', [candidato_id]);
-        if (candCheck.rows.length === 0)
-            return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+        // ── RBAC Scope ───────────────────────────────────────────────────────
+        const allowed = await checkLiderInScope(lider_padre_id, req, res);
+        if (!allowed) return;
 
         await client.query('BEGIN');
 
-        // Lookup estado_persona Activo
-        const estPersRes = await client.query(
-            "SELECT estado_persona_id FROM estado_persona WHERE nombre = 'Activo' LIMIT 1"
-        );
-        const estado_persona_id = estPersRes.rows[0]?.estado_persona_id;
+        // 2. Determinar Nivel (Jerarquía)
+        const levelsRes = await client.query('SELECT nivel_lider_id, nombre FROM nivel_lider ORDER BY nivel_lider_id ASC');
+        const levels = levelsRes.rows;
+        const maxLevels = levels.length;
 
-        // Lookup rol Admin
-        const rolRes = await client.query("SELECT rol_id FROM roles WHERE nombre = 'Admin' LIMIT 1");
-        if (rolRes.rows.length === 0) {
+        const upwardPathQuery = `
+            WITH RECURSIVE upward_path AS (
+                SELECT lider_id, lider_padre_id, 1 as depth
+                FROM lideres WHERE lider_id = $1 AND candidato_id = $2
+                UNION ALL
+                SELECT l.lider_id, l.lider_padre_id, up.depth + 1
+                FROM lideres l JOIN upward_path up ON l.lider_id = up.lider_padre_id
+            )
+            SELECT MAX(depth) as current_depth FROM upward_path
+        `;
+        const depthRes = await client.query(upwardPathQuery, [lider_padre_id, req.user.candidato_id]);
+        if (depthRes.rows.length === 0 || depthRes.rows[0].current_depth === null) {
             await client.query('ROLLBACK');
-            return res.status(500).json({ ok: false, message: 'Rol Admin no encontrado en el sistema' });
+            return res.status(404).json({ ok: false, message: 'Líder padre no encontrado' });
         }
-        const rol_id = rolRes.rows[0].rol_id;
+        const currentDepth = parseInt(depthRes.rows[0].current_depth);
 
-        // Lookup estado_usuario Activo
-        const estadoUsrRes = await client.query(
-            "SELECT estado_usuario_id FROM estado_usuario WHERE nombre = 'Activo' LIMIT 1"
-        );
-        const estado_usuario_id = estadoUsrRes.rows[0]?.estado_usuario_id;
+        // Sin límite de jerarquía: cualquier rol puede crear sub-líderes
+        // Si currentDepth supera el número de niveles definidos, reutilizamos el último nivel
+        const nextLevel = levels[Math.min(currentDepth, levels.length - 1)];
 
-        // Lookup primer sector disponible como fallback
-        const sectorRes = await client.query('SELECT sector_id FROM sectores ORDER BY sector_id LIMIT 1');
-        const sector_id = sectorRes.rows[0]?.sector_id || null;
+        let persona_id;
+        let nombres_notif = '';
 
-        // Verificar cédula duplicada
-        const cedDup = await client.query('SELECT persona_id FROM personas WHERE cedula = $1 LIMIT 1', [cedula.trim()]);
-        if (cedDup.rows.length > 0) {
-            await client.query('ROLLBACK');
-            return res.status(409).json({ ok: false, message: 'Ya existe una persona con esa cédula' });
+        if (modo === 'EXISTENTE') {
+            if (!persona_existente?.persona_id) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ ok: false, message: 'persona_id requerido para EXISTENTE' });
+            }
+            persona_id = persona_existente.persona_id;
+            const pCheck = await client.query('SELECT nombres FROM personas WHERE persona_id = $1 AND candidato_id = $2', [persona_id, req.user.candidato_id]);
+            if (pCheck.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ ok: false, message: 'Persona no existe' });
+            }
+            nombres_notif = pCheck.rows[0].nombres;
+        } else {
+            // NUEVO
+            if (!persona_nueva?.nombres || !persona_nueva?.telefono || !persona_nueva?.sector_id) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ ok: false, message: 'Faltan campos de la persona' });
+            }
+            // Dup check within candidate scope
+            const dRes = await client.query('SELECT persona_id FROM personas WHERE (telefono = $1 OR (cedula IS NOT NULL AND cedula = $2)) AND candidato_id = $3', [persona_nueva.telefono, persona_nueva.cedula || '', req.user.candidato_id]);
+            if (dRes.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ ok: false, message: 'Persona duplicada para este candidato' });
+            }
+
+            const estPRes = await client.query("SELECT estado_persona_id FROM estado_persona WHERE nombre = 'Activo' LIMIT 1");
+            const insP = await client.query(
+                `INSERT INTO personas (nombres, apellidos, cedula, telefono, email, sector_id, estado_persona_id, fecha_registro, candidato_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, $8) RETURNING persona_id`,
+                [persona_nueva.nombres, persona_nueva.apellidos, persona_nueva.cedula || null, persona_nueva.telefono, persona_nueva.email || null, persona_nueva.sector_id, estPRes.rows[0].estado_persona_id, req.user.candidato_id]
+            );
+            persona_id = insP.rows[0].persona_id;
+            nombres_notif = persona_nueva.nombres;
         }
 
-        // Crear persona vinculada al candidato
-        const personaRes = await client.query(
-            `INSERT INTO personas (nombres, apellidos, cedula, telefono, email, estado_persona_id, sector_id, candidato_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING persona_id`,
-            [nombres.trim(), apellidos.trim(), cedula.trim(), telefono.trim(),
-             email_login.trim(), estado_persona_id, sector_id, candidato_id]
+        // 5. Crear el Líder vinculado
+        const estLidRes = await client.query("SELECT estado_lider_id FROM estado_lider WHERE nombre = 'Activo' LIMIT 1");
+        const codigoLider = `LDR-${Date.now().toString().slice(-6)}`;
+        
+        const liderRes = await client.query(
+            `INSERT INTO lideres (persona_id, meta_cantidad, codigo_lider, estado_lider_id, nivel_lider_id, lider_padre_id, fecha_inicio, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7) RETURNING *`,
+            [persona_id, meta_cantidad, codigoLider, estLidRes.rows[0].estado_lider_id, nextLevel.nivel_lider_id, lider_padre_id, req.user.candidato_id]
         );
-        const persona_id = personaRes.rows[0].persona_id;
+        
+        const liderCreated = liderRes.rows[0];
 
-        // Crear usuario Admin
-        const password_hash = await bcrypt.hash(password.trim(), 12);
-        const userRes = await client.query(
-            `INSERT INTO usuarios (persona_id, email_login, password_hash, rol_id, estado_usuario_id, candidato_id)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING usuario_id, email_login`,
-            [persona_id, email_login.trim(), password_hash, rol_id, estado_usuario_id, candidato_id]
-        );
+        // 6. (Opcional) Crear usuario ───────────────────────────────────────
+        let usuarioCreated = null;
+
+        if (usuario?.crear) {
+            // Verificar que no tenga ya un usuario
+            const userCheck = await client.query(
+                'SELECT usuario_id FROM usuarios WHERE persona_id = $1', [persona_id]
+            );
+            if (userCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    ok: false, code: 'USER_ALREADY_EXISTS',
+                    message: 'Esta persona ya tiene acceso al sistema'
+                });
+            }
+
+            // Obtener cédula de la persona para usarla como login
+            const cedRes = await client.query(
+                'SELECT cedula FROM personas WHERE persona_id = $1', [persona_id]
+            );
+            const cedula = cedRes.rows[0]?.cedula;
+            if (!cedula) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    ok: false, code: 'NO_CEDULA',
+                    message: 'La persona no tiene cédula registrada — no se puede crear el acceso. Registra la cédula primero.'
+                });
+            }
+
+            // Normalizar cédula: quitar guiones y espacios para usar como username
+            const cedulaLogin = cedula.replace(/[-\s]/g, '');
+
+            // Verificar que la cédula no esté ya en uso como username
+            const loginCheck = await client.query(
+                'SELECT usuario_id FROM usuarios WHERE username = $1 LIMIT 1', [cedulaLogin]
+            );
+            if (loginCheck.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    ok: false, code: 'DUPLICATE_LOGIN',
+                    message: `Ya existe un usuario con la cédula "${cedulaLogin}" como login`
+                });
+            }
+
+            // Lookup rol
+            const rolNombre = usuario.rol_nombre || 'Sub-Líder';
+            const rolRes = await client.query(
+                "SELECT rol_id FROM roles WHERE nombre = $1 OR nombre = 'Sub-Líder' LIMIT 1", [rolNombre]
+            );
+            if (rolRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ ok: false, code: 'ROL_NOT_FOUND', message: `Rol "${rolNombre}" no encontrado` });
+            }
+
+            // Lookup estado_usuario
+            const estadoURes = await client.query(
+                "SELECT estado_usuario_id FROM estado_usuario WHERE nombre = 'Activo' LIMIT 1"
+            );
+            if (estadoURes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ ok: false, code: 'ESTADO_NOT_FOUND', message: 'Estado Activo no encontrado' });
+            }
+
+            // Contraseña inicial fija
+            const password_hash = await bcrypt.hash('Clave1234!', 10);
+
+            const userIns = await client.query(
+                `INSERT INTO usuarios (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id, candidato_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING usuario_id, persona_id, username`,
+                [
+                    persona_id,
+                    null,           // email_login vacío — login es por cédula (username)
+                    cedulaLogin,    // username = cédula sin guiones ni espacios
+                    password_hash,
+                    rolRes.rows[0].rol_id,
+                    estadoURes.rows[0].estado_usuario_id,
+                    req.user.candidato_id
+                ]
+            );
+            usuarioCreated = userIns.rows[0];
+        }
 
         await client.query('COMMIT');
-        res.status(201).json({
+
+        const resData = {
             ok: true,
-            data: { usuario_id: userRes.rows[0].usuario_id, login: userRes.rows[0].email_login }
-        });
+            data: {
+                lider_id: liderCreated.lider_id,
+                persona_id: persona_id,
+                usuario: usuarioCreated ? {
+                    usuario_id: usuarioCreated.usuario_id,
+                    username: usuarioCreated.username
+                } : null
+            },
+            message: `Nuevo líder creado exitosamente. Nivel asignado: ${nextLevel.nombre}`
+        };
+
+        res.status(201).json(resData);
+
     } catch (err) {
         await client.query('ROLLBACK');
-        if (err.code === '23505') {
-            return res.status(409).json({ ok: false, message: 'El email ya está en uso por otro usuario' });
-        }
         next(err);
     } finally {
         client.release();
     }
 });
 
-// GET /dashboard/crecimiento — personas registradas en los últimos 30 días agrupadas por día
-router.get('/dashboard/crecimiento', authenticate, async (req, res, next) => {
-    try {
-        const candidato_id = req.user?.candidato_id || null;
-        let query, params;
-        if (candidato_id) {
-            query = `
-                SELECT DATE_TRUNC('day', fecha_registro) AS fecha, COUNT(*) AS total
-                FROM personas
-                WHERE candidato_id = $1
-                  AND fecha_registro >= NOW() - INTERVAL '30 days'
-                GROUP BY DATE_TRUNC('day', fecha_registro)
-                ORDER BY fecha ASC`;
-            params = [candidato_id];
-        } else {
-            query = `
-                SELECT DATE_TRUNC('day', fecha_registro) AS fecha, COUNT(*) AS total
-                FROM personas
-                WHERE fecha_registro >= NOW() - INTERVAL '30 days'
-                GROUP BY DATE_TRUNC('day', fecha_registro)
-                ORDER BY fecha ASC`;
-            params = [];
-        }
-        const result = await pool.query(query, params);
-        res.json({ ok: true, data: result.rows });
-    } catch (err) {
-        next(err);
+// ─── CANDIDATOS ───────────────────────────────────────────────────────────────
+// GET /candidatos - Lista todos los candidatos (solo ADMIN ve todos)
+router.get('/candidatos', authenticate, async (req, res, next) => {
+  try {
+    const SUPER_ADMIN_CANDIDATO_ID = '00000000-0000-0000-0000-000000000001';
+    const isSuperAdmin = req.user?.candidato_id === SUPER_ADMIN_CANDIDATO_ID;
+    let query, values;
+    if (isSuperAdmin) {
+      // Super Admin ve TODOS los candidatos
+      query = 'SELECT candidato_id, nombre, descripcion, activo, fecha_creacion FROM candidatos ORDER BY fecha_creacion';
+      values = [];
+    } else {
+      // Admin de candidato específico ve SOLO su candidato
+      query = 'SELECT candidato_id, nombre, descripcion, activo, fecha_creacion FROM candidatos WHERE candidato_id = $1';
+      values = [req.user.candidato_id];
     }
+    const result = await pool.query(query, values);
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /candidatos - Crear candidato (solo ADMIN)
+router.post('/candidatos', authenticate, async (req, res, next) => {
+  try {
+    if (req.user?.rol_nombre !== 'ADMIN') {
+      return res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Solo el Admin puede crear candidatos' });
+    }
+    const { nombre, descripcion } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ ok: false, message: 'nombre es requerido' });
+    const result = await pool.query(
+      'INSERT INTO candidatos (nombre, descripcion) VALUES ($1, $2) RETURNING *',
+      [nombre.trim(), descripcion?.trim() || null]
+    );
+    res.status(201).json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PUT /candidatos/:id - Editar candidato (solo ADMIN)
+router.put('/candidatos/:id', authenticate, async (req, res, next) => {
+  try {
+    if (req.user?.rol_nombre !== 'ADMIN') {
+      return res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Solo el Admin puede editar candidatos' });
+    }
+    const { nombre, descripcion, activo } = req.body;
+    const result = await pool.query(
+      `UPDATE candidatos SET
+        nombre = COALESCE($1, nombre),
+        descripcion = COALESCE($2, descripcion),
+        activo = COALESCE($3, activo)
+       WHERE candidato_id = $4 RETURNING *`,
+      [nombre?.trim() || null, descripcion?.trim() || null, activo ?? null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+    res.json({ ok: true, data: result.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// POST /candidatos/:id/admin - Crear usuario admin para un candidato (solo SUPER ADMIN)
+router.post('/candidatos/:id/admin', authenticate, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    if (req.user?.rol_nombre !== 'ADMIN') {
+      return res.status(403).json({ ok: false, code: 'FORBIDDEN', message: 'Solo el Admin puede crear admins de candidato' });
+    }
+    const { nombres, apellidos, cedula, telefono, email_login, password } = req.body;
+    if (!nombres || !apellidos || !telefono || !email_login || !password) {
+      return res.status(400).json({ ok: false, message: 'nombres, apellidos, telefono, email_login y password son requeridos' });
+    }
+    await client.query('BEGIN');
+    // Verificar que el candidato existe
+    const candCheck = await client.query('SELECT candidato_id FROM candidatos WHERE candidato_id = $1', [req.params.id]);
+    if (candCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+    }
+    // Obtener sector y estado por defecto
+    const sectorRes = await client.query('SELECT sector_id FROM sectores LIMIT 1');
+    const estadoPersonaRes = await client.query("SELECT estado_persona_id FROM estado_persona WHERE nombre = 'Activo' LIMIT 1");
+    const rolRes = await client.query("SELECT rol_id FROM roles WHERE nombre = 'Admin' LIMIT 1");
+    const estadoUsuarioRes = await client.query("SELECT estado_usuario_id FROM estado_usuario WHERE nombre = 'Activo' LIMIT 1");
+    // Crear persona vinculada al candidato
+    const personaRes = await client.query(
+      `INSERT INTO personas (nombres, apellidos, cedula, telefono, sector_id, estado_persona_id, candidato_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nombres, apellidos, cedula || null, telefono, sectorRes.rows[0].sector_id, estadoPersonaRes.rows[0].estado_persona_id, req.params.id]
+    );
+    const persona = personaRes.rows[0];
+    // Crear usuario admin con candidato_id
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 12);
+    const usuarioRes = await client.query(
+      `INSERT INTO usuarios (persona_id, email_login, password_hash, rol_id, estado_usuario_id, candidato_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING usuario_id, email_login`,
+      [persona.persona_id, email_login, hash, rolRes.rows[0].rol_id, estadoUsuarioRes.rows[0].estado_usuario_id, req.params.id]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ ok: true, data: { usuario: usuarioRes.rows[0], persona } });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// GET /roles — retorna solo los roles asignables a líderes (Coordinador y Sub-Lider)
+router.get('/roles', authenticate, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT ON (nombre) rol_id, nombre FROM roles
+       WHERE nombre IN ('Coordinador', 'Sub-Lider')
+       ORDER BY nombre, rol_id`
+    );
+    res.json({ ok: true, data: result.rows });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

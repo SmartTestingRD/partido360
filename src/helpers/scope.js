@@ -1,10 +1,10 @@
 /**
  * Scope Helper — árbol de líderes (CTE recursivo)
  *
- * REGLA CRÍTICA: root_lider_id para LIDER SIEMPRE viene de req.user.lider_id
+ * REGLA CRÍTICA: root_lider_id para SUB_LIDER SIEMPRE viene de req.user.lider_id
  * (resuelto en middleware/auth.js), NUNCA de un parámetro de request del cliente.
  *
- * Roles canónicos esperados en req.user.rol_nombre: 'ADMIN' | 'COORDINADOR' | 'LIDER'
+ * Roles canónicos esperados en req.user.rol_nombre: 'ADMIN' | 'COORDINADOR' | 'SUB_LIDER'
  */
 const { pool } = require('../config/db');
 
@@ -36,25 +36,45 @@ const getLiderTree = getScopeLeaderIds;
 
 /**
  * buildLiderScope(req, values, paramCount)
- * Inyecta un filtro " AND l.lider_id = ANY($N)" para rol LIDER.
- * Para ADMIN y COORDINADOR devuelve scopeClause vacío (ven todo).
+ * Inyecta filtros de Jerarquía y Candidato (Multi-tenant).
  *
- * Usa req.user.lider_id (resuelto en auth middleware — no del cliente).
+ * Reglas:
+ *   ADMIN        → sin filtro (ve todo)
+ *   COORDINADOR  → solo filtro por candidato_id (ve todo dentro de su candidato)
+ *   SUB_LIDER    → filtro por árbol descendente de su lider_id
  */
 async function buildLiderScope(req, values = [], paramCount = 1) {
-    const role = req.user?.rol_nombre; // 'ADMIN' | 'COORDINADOR' | 'LIDER'
+    const role = req.user?.rol_nombre;
+    const lider_id = req.user?.lider_id;
+    const candidato_id = req.user?.candidato_id;
 
-    if (role === 'ADMIN' || role === 'COORDINADOR') {
-        return { scopeClause: '', values, paramCount, treeIds: null };
+    let scopeClause = "";
+
+    // 1. Filtrar por Candidato (todos los roles excepto Super Admin)
+    if (candidato_id) {
+        scopeClause += ` AND l.candidato_id = $${paramCount}`;
+        values.push(candidato_id);
+        paramCount++;
     }
 
-    // LIDER — root_lider_id siempre de req.user, nunca del request
-    const treeIds = await getScopeLeaderIds(req.user.lider_id);
-    const scopeClause = ` AND l.lider_id = ANY($${paramCount})`;
-    values.push(treeIds);
-    paramCount++;
+    // 2. Filtro de árbol jerárquico — solo para SUB_LIDER
+    //    COORDINADOR ve todo su candidato sin restricción de árbol
+    //    ADMIN no tiene ningún filtro adicional
+    if (role === 'SUB_LIDER') {
+        if (!lider_id) {
+            scopeClause += ' AND 1=0'; // Sub-Líder sin lider_id asignado → no ve nada
+        } else {
+            const treeIds = await getScopeLeaderIds(lider_id);
+            scopeClause += ` AND l.lider_id = ANY($${paramCount})`;
+            values.push(treeIds);
+            paramCount++;
+        }
+    } else if (role !== 'ADMIN' && role !== 'COORDINADOR') {
+        // Rol desconocido no-admin: sin acceso
+        scopeClause += ' AND 1=0';
+    }
 
-    return { scopeClause, values, paramCount, treeIds };
+    return { scopeClause, values, paramCount };
 }
 
 /**
@@ -64,10 +84,28 @@ async function buildLiderScope(req, values = [], paramCount = 1) {
  */
 async function checkLiderInScope(lider_id_param, req, res) {
     const role = req.user?.rol_nombre;
-    if (role === 'ADMIN' || role === 'COORDINADOR') return true;
+    const user_lider_id = req.user?.lider_id;
+    const candidato_id = req.user?.candidato_id;
 
-    // LIDER — verificar contra su árbol
-    const treeIds = await getScopeLeaderIds(req.user.lider_id);
+    // Verificar candidato primero
+    if (candidato_id) {
+        const cCheck = await pool.query('SELECT candidato_id FROM lideres WHERE lider_id = $1', [lider_id_param]);
+        if (cCheck.rows.length > 0 && cCheck.rows[0].candidato_id !== candidato_id) {
+            res.status(403).json({ ok: false, code: 'FORBIDDEN_CANDIDATE', message: 'No tienes acceso a este candidato' });
+            return false;
+        }
+    }
+
+    if (role === 'ADMIN') return true;
+    // COORDINADOR: accede a cualquier líder dentro de su candidato (ya verificado arriba)
+    if (role === 'COORDINADOR') return true;
+
+    // SUB_LIDER — verificar contra su árbol descendente
+    if (!user_lider_id) {
+        res.status(403).json({ ok: false, code: 'FORBIDDEN_SCOPE', message: 'No tienes acceso (sin lider_id)' });
+        return false;
+    }
+    const treeIds = await getScopeLeaderIds(user_lider_id);
     if (!treeIds.includes(lider_id_param)) {
         res.status(403).json({
             ok: false,

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = 'http://localhost:3001/api';
 
 // Add a request interceptor to attach the JWT token to every request
 axios.interceptors.request.use((config) => {
@@ -44,13 +44,18 @@ export interface Fuente {
 
 export interface LiderResumen {
     lider_id: string;
+    lider_padre_id: string | null;
     nombre_completo: string;
     telefono: string;
+    cedula?: string;
+    sector_id: string;
     sector_nombre: string;
     meta_cantidad: number;
     total_reclutados: number;
     porcentaje_cumplimiento: number;
+    estado_lider_id: string;
     estado_nombre: string;
+    nivel_lider_id: string;
     nivel_nombre: string;
     nombres: string;
     apellidos: string;
@@ -311,6 +316,29 @@ export const crearLider = async (data: LiderFormPayload): Promise<any> => {
 
 export const createLiderFull = async (data: CreateLiderPayload): Promise<any> => {
     const response = await axios.post(`${API_URL}/lideres/crear`, data);
+    return response.data;
+};
+
+export interface CreateLiderHierarchyPayload {
+    nombres: string;
+    apellidos: string;
+    cedula?: string | null;
+    telefono: string;
+    email?: string | null;
+    sector_id: string;
+    lider_padre_id: string;
+    meta_cantidad?: number;
+    usuario?: {
+        crear: boolean;
+        email_login?: string | null;
+        generar_password_temporal?: boolean;
+        rol_nombre?: string;
+        estado_usuario_nombre?: string;
+    };
+}
+
+export const createLiderHierarchy = async (payload: CreateLiderHierarchyPayload): Promise<any> => {
+    const response = await axios.post(`${API_URL}/lideres/hierarchy`, payload);
     return response.data;
 };
 

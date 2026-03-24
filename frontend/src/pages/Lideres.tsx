@@ -42,6 +42,24 @@ const calcPct = (reclutados: number, meta: number): number => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const Lideres = () => {
+    // ─── Usuario logueado (para control de visibilidad de botones) ────────────
+    const _rawUser = (() => {
+        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+    })();
+    const currentUserRol: string = (
+        _rawUser?.rol_nombre || _rawUser?.data?.rol_nombre || _rawUser?.user?.rol_nombre || ''
+    ).toUpperCase().replace(/[-_\s]/g, '');
+    const currentLiderId: string | null = _rawUser?.lider_id || _rawUser?.data?.lider_id || _rawUser?.user?.lider_id || null;
+
+    /** ¿Puede el usuario logueado editar este líder? */
+    const canEdit = (lider: LiderResumen): boolean => {
+        if (currentUserRol === 'ADMIN' || currentUserRol === 'COORDINADOR') return true;
+        if (currentUserRol === 'SUBLIDER' && currentLiderId) {
+            return lider.lider_id === currentLiderId || lider.lider_padre_id === currentLiderId;
+        }
+        return false;
+    };
+
     const [lideres, setLideres] = useState<LiderResumen[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,7 +77,6 @@ const Lideres = () => {
     // Filters
     const [search, setSearch] = useState('');
     const [sector, setSector] = useState('');
-    const [estado, setEstado] = useState('');
     const [nivel, setNivel] = useState('');
 
     // Pagination
@@ -96,7 +113,7 @@ const Lideres = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await getLideresResumen({ search, sector, estado, nivel, page, pageSize });
+            const res = await getLideresResumen({ search, sector, nivel, page, pageSize });
             setLideres(res.data);
             setTotal(res.total || 0);
         } catch (err) {
@@ -119,8 +136,8 @@ const Lideres = () => {
     };
 
     useEffect(() => { fetchCatalogs(); }, []);
-    useEffect(() => { setPage(1); }, [search, sector, estado, nivel]);
-    useEffect(() => { fetchLideres(); }, [search, sector, estado, nivel, page]);
+    useEffect(() => { setPage(1); }, [search, sector, nivel]);
+    useEffect(() => { fetchLideres(); }, [search, sector, nivel, page]);
 
     /* Borrado redundante - ahora en CreateLiderModal */
 
@@ -201,14 +218,13 @@ const Lideres = () => {
     const handleClearFilters = () => {
         setSearch('');
         setSector('');
-        setEstado('');
         setNivel('');
         setPage(1);
     };
 
     const handleExport = async () => {
         try {
-            const blob = await getLideresResumenExport({ search, sector, estado, nivel });
+            const blob = await getLideresResumenExport({ search, sector, nivel });
             const url = window.URL.createObjectURL(new Blob([blob]));
             const link = document.createElement('a');
             link.href = url;
@@ -225,17 +241,19 @@ const Lideres = () => {
 
     const openEditModal = (e: React.MouseEvent, lider: LiderResumen) => {
         e.stopPropagation();
-        const curEst = estadosLider.find(est => est.nombre === lider.estado_nombre)?.estado_lider_id || '';
-        const curNiv = nivelesLider.find(n => n.nombre === lider.nivel_nombre)?.nivel_lider_id || '';
+        // Usar IDs directos del backend (ya incluidos en lideres-resumen)
+        // Fallback a búsqueda por nombre si el campo directo no está disponible
+        const curEst = lider.estado_lider_id || estadosLider.find(est => est.nombre === lider.estado_nombre)?.estado_lider_id || '';
+        const curNiv = lider.nivel_lider_id || nivelesLider.find(n => n.nombre === lider.nivel_nombre)?.nivel_lider_id || '';
         setEditForm({
             meta_cantidad: lider.meta_cantidad,
             estado_lider_id: curEst,
             nivel_lider_id: curNiv,
-            lider_padre_id: (lider as any).lider_padre_id || '',
-            nombres: (lider as any).nombres || '',
-            apellidos: (lider as any).apellidos || '',
-            telefono: (lider as any).telefono || '',
-            sector_id: (lider as any).sector_id || '',
+            lider_padre_id: lider.lider_padre_id || '',
+            nombres: lider.nombres || '',
+            apellidos: lider.apellidos || '',
+            telefono: lider.telefono || '',
+            sector_id: lider.sector_id || '',
         });
         setSelectedEditLider(lider);
     };
@@ -261,6 +279,15 @@ const Lideres = () => {
         if (porcentaje >= 100) return 'bg-green-500 text-green-600';
         if (porcentaje >= 50) return 'bg-blue-500 text-blue-600';
         return 'bg-red-500 text-red-600';
+    };
+
+    const formatPhone = (phone: string) => {
+        if (!phone) return '';
+        const clean = phone.replace(/\D/g, '');
+        if (clean.length === 10) {
+            return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6)}`;
+        }
+        return phone;
     };
 
     const getStatusBadge = (estadoNombre: string) => {
@@ -353,15 +380,6 @@ const Lideres = () => {
                                 <option value="">Nivel</option>
                                 {nivelesLider.map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
                             </select>
-                            <select
-                                className="block w-full md:w-32 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-xs sm:text-sm h-10 transition-shadow disabled:opacity-50"
-                                value={estado}
-                                disabled={loading || estadosLider.length === 0}
-                                onChange={(e) => setEstado(e.target.value)}
-                            >
-                                <option value="">Estado</option>
-                                {estadosLider.map(e => <option key={e.estado_lider_id} value={e.estado_lider_id}>{e.nombre}</option>)}
-                            </select>
                         </div>
                         <button
                             onClick={handleClearFilters}
@@ -449,9 +467,11 @@ const Lideres = () => {
                                             <button onClick={(e) => { e.stopPropagation(); setSelectedGoalLider(lider); setGoalValue(lider.meta_cantidad); }} className="px-3 py-1.5 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 rounded-md text-sm font-medium hover:bg-yellow-100">
                                                 Meta
                                             </button>
+                                            {canEdit(lider) && (
                                             <button onClick={(e) => openEditModal(e, lider)} className="px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-md text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40">
                                                 Editar
                                             </button>
+                                            )}
                                             <button onClick={() => window.location.hash = `lideres/${lider.lider_id}`} className="px-3 py-1.5 bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600">
                                                 Perfil
                                             </button>
@@ -468,7 +488,7 @@ const Lideres = () => {
 
                             {/* ── Desktop Table ── */}
                             <div className="hidden md:block overflow-x-auto">
-                                <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                                <table className="min-w-[750px] w-full text-left text-sm text-gray-600 dark:text-gray-300">
                                     <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">
                                         <tr>
                                             <th className="px-6 py-4" scope="col">Líder</th>
@@ -510,7 +530,7 @@ const Lideres = () => {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">{lider.telefono}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap">{formatPhone(lider.telefono || '')}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap">{lider.sector_nombre}</td>
                                                 <td className="px-6 py-4 text-center font-medium">{lider.meta_cantidad}</td>
                                                 <td className="px-6 py-4 text-center font-bold text-gray-900 dark:text-white">{lider.total_reclutados}</td>
@@ -546,6 +566,7 @@ const Lideres = () => {
                                                         >
                                                             <span className="material-symbols-outlined text-xl">flag</span>
                                                         </button>
+                                                        {canEdit(lider) && (
                                                         <button
                                                             onClick={(e) => openEditModal(e, lider)}
                                                             className="text-gray-400 hover:text-primary transition-colors p-1"
@@ -553,6 +574,7 @@ const Lideres = () => {
                                                         >
                                                             <span className="material-symbols-outlined text-xl">edit</span>
                                                         </button>
+                                                        )}
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); window.location.hash = `lideres/${lider.lider_id}`; }}
                                                             className="text-gray-400 hover:text-green-600 transition-colors p-1"

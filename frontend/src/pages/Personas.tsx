@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPersonas, getSectores, getLideres, getEstadosPersona, getPersonaDetalle, getNivelesLider, getEstadosLider, crearLider, Persona, Sector, Lider, EstadoPersona, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, crearLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
 
 const Personas = () => {
     const [personas, setPersonas] = useState<Persona[]>([]);
@@ -10,7 +10,6 @@ const Personas = () => {
     const [search, setSearch] = useState('');
     const [sector, setSector] = useState('');
     const [lider, setLider] = useState('');
-    const [estado, setEstado] = useState('');
 
     // Pagination state
     const [page, setPage] = useState(1);
@@ -21,7 +20,6 @@ const Personas = () => {
     // Catalogues
     const [sectores, setSectores] = useState<Sector[]>([]);
     const [lideres, setLideres] = useState<Lider[]>([]);
-    const [estadosPersona, setEstadosPersona] = useState<EstadoPersona[]>([]);
     const [nivelesLider, setNivelesLider] = useState<NivelLider[]>([]);
     const [estadosLider, setEstadosLider] = useState<EstadoLider[]>([]);
 
@@ -55,16 +53,14 @@ const Personas = () => {
     useEffect(() => {
         const fetchCatalogos = async () => {
             try {
-                const [sectoresData, lideresData, estadosData, nivelesLiderData, estadosLiderData] = await Promise.all([
+                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData] = await Promise.all([
                     getSectores(),
                     getLideres(),
-                    getEstadosPersona(),
                     getNivelesLider(),
                     getEstadosLider()
                 ]);
                 setSectores(sectoresData);
                 setLideres(lideresData);
-                setEstadosPersona(estadosData);
                 setNivelesLider(nivelesLiderData);
                 setEstadosLider(estadosLiderData);
                 if (nivelesLiderData.length > 0) setNivelLiderId(nivelesLiderData[0].nivel_lider_id);
@@ -83,7 +79,7 @@ const Personas = () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await getPersonas({ q: search, sector_id: sector, lider_id: lider, estado_persona_id: estado, page, pageSize });
+            const data = await getPersonas({ q: search, sector_id: sector, lider_id: lider, page, pageSize });
             setPersonas(data.data);
             setTotalPages(data.totalPages);
             setTotalRecords(data.total);
@@ -97,13 +93,12 @@ const Personas = () => {
 
     useEffect(() => {
         fetchPersonasData();
-    }, [search, sector, lider, estado, page]);
+    }, [search, sector, lider, page]);
 
     const handleClearFilters = () => {
         setSearch('');
         setSector('');
         setLider('');
-        setEstado('');
         setPage(1);
     };
 
@@ -214,10 +209,6 @@ const Personas = () => {
                                     <option value="">Líder</option>
                                     {lideres.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
                                 </select>
-                                <select value={estado} onChange={(e) => { setEstado(e.target.value); setPage(1); }} className="block w-full md:w-32 col-span-2 sm:col-span-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-xs sm:text-sm h-10 transition-shadow">
-                                    <option value="">Estado</option>
-                                    {estadosPersona.map(e => <option key={e.estado_persona_id} value={e.estado_persona_id}>{e.nombre}</option>)}
-                                </select>
                             </div>
                         </div>
                         <button onClick={handleClearFilters} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary font-medium flex items-center gap-1 whitespace-nowrap self-end md:self-center">
@@ -300,7 +291,7 @@ const Personas = () => {
 
                             {/* Desktop View */}
                             <div className="hidden md:block overflow-x-auto custom-scrollbar flex-1">
-                                <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                                <table className="min-w-[800px] w-full text-left text-sm text-gray-600 dark:text-gray-300">
                                     <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 sticky top-0 z-10 backdrop-blur-sm">
                                         <tr>
                                             <th className="px-6 py-4" scope="col">Nombre Completo</th>
