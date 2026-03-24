@@ -112,6 +112,7 @@ CREATE TABLE personas (
     fecha_registro    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     estado_persona_id UUID         NOT NULL REFERENCES estado_persona(estado_persona_id)  ON DELETE RESTRICT,
     notas             TEXT,
+    mesa              VARCHAR(50),
     candidato_id      UUID         REFERENCES candidatos(candidato_id)                    ON DELETE RESTRICT
 );
 
