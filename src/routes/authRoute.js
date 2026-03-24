@@ -43,7 +43,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         const result = await pool.query(
             `SELECT
 u.usuario_id, u.persona_id, u.password_hash,
-    u.failed_login_attempts, u.locked_until,
+    u.failed_login_attempts, u.locked_until, u.candidato_id,
     p.nombres || ' ' || p.apellidos AS nombre_completo,
         r.nombre AS rol_nombre_db,
             eu.nombre AS estado_usuario_nombre
@@ -109,7 +109,7 @@ u.usuario_id, u.persona_id, u.password_hash,
         const rol_nombre = normalizeRole(user.rol_nombre_db);
 
         // Emitir JWT
-        const jwtPayload = { usuario_id: user.usuario_id, persona_id: user.persona_id, rol_nombre };
+        const jwtPayload = { usuario_id: user.usuario_id, persona_id: user.persona_id, rol_nombre, candidato_id: user.candidato_id };
 
         // Resolver lider_id si es LIDER
         let lider_id = null;
@@ -134,6 +134,7 @@ u.usuario_id, u.persona_id, u.password_hash,
                     persona_id: user.persona_id,
                     nombre_completo: user.nombre_completo,
                     rol_nombre,
+                    candidato_id: user.candidato_id,
                     lider_id
                 }
             }

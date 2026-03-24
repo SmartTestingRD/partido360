@@ -29,15 +29,21 @@ const ToastContainer = ({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
 );
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
-type Tab = 'meta' | 'usuarios' | 'catalogos' | 'sistema';
+type Tab = 'meta' | 'usuarios' | 'catalogos' | 'sistema' | 'candidatos';
 
 interface TabDef { id: Tab; label: string; icon: string; }
-const TABS: TabDef[] = [
+const BASE_TABS: TabDef[] = [
     { id: 'meta', label: 'Meta Global', icon: 'flag' },
     { id: 'usuarios', label: 'Usuarios', icon: 'manage_accounts' },
     { id: 'catalogos', label: 'Catálogos', icon: 'category' },
     { id: 'sistema', label: 'Sistema', icon: 'settings' },
 ];
+
+// ─── Helper: rol desde localStorage ─────────────────────────────────────────
+function getRolFromStorage(): string {
+    try { return JSON.parse(localStorage.getItem('user') || '{}').rol_nombre || ''; }
+    catch { return ''; }
+}
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -616,8 +622,117 @@ const TabSistema = () => {
     );
 };
 
+// ─── Tab: Candidatos (solo ADMIN) ─────────────────────────────────────────────
+const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+    const [candidatos, setCandidatos] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [nombre, setNombre] = useState('');
+    const [descripcion, setDescripcion] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const load = async () => {
+        setLoading(true);
+        try {
+            const r = await axios.get(`${API}/candidatos`);
+            setCandidatos(r.data.data || []);
+        } catch { toast('Error cargando candidatos', 'error'); }
+        finally { setLoading(false); }
+    };
+
+    useEffect(() => { load(); }, []);
+
+    const handleCreate = async () => {
+        if (!nombre.trim()) { toast('El nombre es requerido', 'error'); return; }
+        setSaving(true);
+        try {
+            await axios.post(`${API}/candidatos`, { nombre: nombre.trim(), descripcion: descripcion.trim() || null });
+            toast('Candidato creado ✓', 'success');
+            setNombre(''); setDescripcion('');
+            load();
+        } catch (e: any) {
+            toast(e.response?.data?.message || 'Error al crear candidato', 'error');
+        } finally { setSaving(false); }
+    };
+
+    const toggleActivo = async (id: string, activo: boolean) => {
+        try {
+            await axios.patch(`${API}/candidatos/${id}`, { activo: !activo });
+            setCandidatos(prev => prev.map(c => c.candidato_id === id ? { ...c, activo: !activo } : c));
+            toast(`Candidato ${!activo ? 'activado' : 'desactivado'} ✓`);
+        } catch { toast('Error al actualizar candidato', 'error'); }
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <SectionHeader icon="how_to_vote" title="Nuevo Candidato" subtitle="Agrega un candidato/cliente al sistema" />
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nombre <span className="text-red-500">*</span></label>
+                        <input type="text" placeholder="Ej. Juan Pérez" value={nombre} onChange={e => setNombre(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descripción</label>
+                        <input type="text" placeholder="Cargo, partido, referencia..." value={descripcion} onChange={e => setDescripcion(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                    </div>
+                    <button onClick={handleCreate} disabled={saving || !nombre.trim()}
+                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-blue-500/30">
+                        {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">add</span>}
+                        Crear candidato
+                    </button>
+                </div>
+            </Card>
+
+            <Card>
+                <SectionHeader icon="ballot" title="Candidatos registrados" />
+                {loading ? (
+                    <div className="p-10 flex justify-center"><Spinner /></div>
+                ) : candidatos.length === 0 ? (
+                    <div className="py-10 text-center text-gray-400 text-sm">No hay candidatos registrados</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase">
+                                <tr>
+                                    <th className="px-6 py-3 text-left">Nombre</th>
+                                    <th className="px-6 py-3 text-left">Descripción</th>
+                                    <th className="px-6 py-3 text-left">Creado</th>
+                                    <th className="px-6 py-3 text-center w-24">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {candidatos.map(c => (
+                                    <tr key={c.candidato_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">{c.nombre}</td>
+                                        <td className="px-6 py-3 text-gray-500 dark:text-gray-400 text-xs">{c.descripcion || '—'}</td>
+                                        <td className="px-6 py-3 text-gray-500 text-xs">{new Date(c.fecha_creacion).toLocaleDateString('es-DO')}</td>
+                                        <td className="px-6 py-3 text-center">
+                                            <button onClick={() => toggleActivo(c.candidato_id, c.activo)}
+                                                className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${c.activo ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}>
+                                                {c.activo ? 'Activo' : 'Inactivo'}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Card>
+        </div>
+    );
+};
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const Ajustes = () => {
+    const rol = getRolFromStorage();
+    const isAdmin = rol === 'ADMIN';
+    const visibleTabs: TabDef[] = isAdmin
+        ? [...BASE_TABS, { id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }]
+        : BASE_TABS;
+
     const [activeTab, setActiveTab] = useState<Tab>('meta');
     const [toasts, setToasts] = useState<Toast[]>([]);
     const toastIdRef = useRef(0);
@@ -645,10 +760,10 @@ const Ajustes = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                    {TABS.map(tab => (
+                <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl overflow-x-auto">
+                    {visibleTabs.map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
                                 ${activeTab === tab.id
                                     ? 'bg-white dark:bg-card-dark text-primary shadow-sm'
                                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -664,6 +779,7 @@ const Ajustes = () => {
                 {activeTab === 'usuarios' && <TabUsuarios toast={toast} />}
                 {activeTab === 'catalogos' && <TabCatalogos />}
                 {activeTab === 'sistema' && <TabSistema />}
+                {activeTab === 'candidatos' && isAdmin && <TabCandidatos toast={toast} />}
 
                 <div className="h-10" />
             </div>

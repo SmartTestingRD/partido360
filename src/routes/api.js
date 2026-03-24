@@ -1542,4 +1542,71 @@ router.post('/usuarios/:usuario_id/reset-password', async (req, res, next) => {
     }
 });
 
+// ─── Candidatos CRUD (solo ADMIN) ────────────────────────────────────────────
+router.get('/candidatos', authenticate, async (req, res, next) => {
+    try {
+        const result = await pool.query('SELECT * FROM candidatos ORDER BY fecha_creacion ASC');
+        res.json({ ok: true, data: result.rows });
+    } catch (err) { next(err); }
+});
+
+router.post('/candidatos', authenticate, async (req, res, next) => {
+    try {
+        const { nombre, descripcion } = req.body;
+        if (!nombre?.trim()) return res.status(400).json({ ok: false, message: 'nombre es requerido' });
+        const r = await pool.query(
+            'INSERT INTO candidatos (nombre, descripcion) VALUES ($1, $2) RETURNING *',
+            [nombre.trim(), descripcion?.trim() || null]
+        );
+        res.status(201).json({ ok: true, data: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+router.patch('/candidatos/:id', authenticate, async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { activo, nombre, descripcion } = req.body;
+        const r = await pool.query(
+            `UPDATE candidatos SET
+                activo      = COALESCE($1, activo),
+                nombre      = COALESCE($2, nombre),
+                descripcion = COALESCE($3, descripcion)
+             WHERE candidato_id = $4 RETURNING *`,
+            [activo ?? null, nombre?.trim() ?? null, descripcion?.trim() ?? null, id]
+        );
+        if (r.rows.length === 0) return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+        res.json({ ok: true, data: r.rows[0] });
+    } catch (err) { next(err); }
+});
+
+// GET /dashboard/crecimiento — personas registradas en los últimos 30 días agrupadas por día
+router.get('/dashboard/crecimiento', authenticate, async (req, res, next) => {
+    try {
+        const candidato_id = req.user?.candidato_id || null;
+        let query, params;
+        if (candidato_id) {
+            query = `
+                SELECT DATE_TRUNC('day', fecha_registro) AS fecha, COUNT(*) AS total
+                FROM personas
+                WHERE candidato_id = $1
+                  AND fecha_registro >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE_TRUNC('day', fecha_registro)
+                ORDER BY fecha ASC`;
+            params = [candidato_id];
+        } else {
+            query = `
+                SELECT DATE_TRUNC('day', fecha_registro) AS fecha, COUNT(*) AS total
+                FROM personas
+                WHERE fecha_registro >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE_TRUNC('day', fecha_registro)
+                ORDER BY fecha ASC`;
+            params = [];
+        }
+        const result = await pool.query(query, params);
+        res.json({ ok: true, data: result.rows });
+    } catch (err) {
+        next(err);
+    }
+});
+
 module.exports = router;
