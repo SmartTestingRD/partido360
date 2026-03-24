@@ -1,6 +1,6 @@
 /**
  * Authentication Middleware — JWT-based
- * Populates req.user with: { usuario_id, persona_id, rol_nombre, lider_id }
+ * Populates req.user with: { usuario_id, persona_id, rol_nombre, candidato_id, lider_id }
  *
  * rol_nombre is NORMALIZED to uppercase: 'ADMIN' | 'COORDINADOR' | 'LIDER'
  * so all scope checks can compare against these constants.
@@ -46,10 +46,11 @@ async function authenticate(req, res, next) {
     const rol_nombre = normalizeRole(payload.rol_nombre);
 
     req.user = {
-        usuario_id: payload.usuario_id,
-        persona_id: payload.persona_id,
-        rol_nombre,    // siempre 'ADMIN' | 'COORDINADOR' | 'LIDER'
-        lider_id: null
+        usuario_id:   payload.usuario_id,
+        persona_id:   payload.persona_id,
+        rol_nombre,                          // siempre 'ADMIN' | 'COORDINADOR' | 'LIDER'
+        candidato_id: payload.candidato_id || null,
+        lider_id:     null
     };
 
     // Para LIDER: resolver lider_id desde DB — NUNCA viene del cliente

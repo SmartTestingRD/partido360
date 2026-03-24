@@ -123,7 +123,11 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
 
 function App() {
   // Simple Hash Router Simulation
-  const [currentPath, setCurrentPath] = useState('lideres');
+  // '' = waiting for handleHashChange to determine the correct initial path.
+  // Starting with a real route like 'lideres' would mount <Lideres/> before
+  // the auth check runs, causing it to fire getLideresResumen() without a token
+  // → 401 → the response interceptor clears localStorage → token is lost.
+  const [currentPath, setCurrentPath] = useState('');
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -162,6 +166,13 @@ function App() {
     window.location.hash = path;
     setCurrentPath(path);
   };
+
+  // Wait for the hash-based auth check to complete before rendering anything.
+  // This prevents child components from firing API calls before we know
+  // whether the user is authenticated.
+  if (currentPath === '') {
+    return null;
+  }
 
   if (currentPath === 'login') {
     return <Login />;
