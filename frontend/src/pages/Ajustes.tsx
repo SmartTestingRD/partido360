@@ -230,7 +230,7 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────
 const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
     const [form, setForm] = useState({
-        persona_id: '', email_login: '', username: '', rol_nombre: 'Lider',
+        persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador',
         generar_password_temporal: true, password: '',
     });
     const [saving, setSaving] = useState(false);
@@ -273,7 +273,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
             const r = await axios.post(`${API}/usuarios`, payload);
             setLastCreated({ login: r.data.data.login, password_temporal: r.data.data.password_temporal });
             toast('Usuario creado exitosamente ✓', 'success');
-            setForm({ persona_id: '', email_login: '', username: '', rol_nombre: 'Lider', generar_password_temporal: true, password: '' });
+            setForm({ persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador', generar_password_temporal: true, password: '' });
             setSearchQ(''); setSearchResults([]);
         } catch (e: any) {
             const msg = e.response?.data?.message || 'Error al crear usuario';
@@ -282,17 +282,18 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     };
 
     const handleReset = async () => {
-        if (!resetId.trim()) { toast('Ingresa el ID del usuario', 'error'); return; }
+        if (!resetId.trim()) { toast('Ingresa la cédula del usuario', 'error'); return; }
         setResetting(true);
         try {
-            const r = await axios.post(`${API}/usuarios/${resetId}/reset-password`, { generar_password_temporal: true });
-            toast(`Contraseña reseteada. Temporal: ${r.data.data.password_temporal}`, 'info');
+            await axios.post(`${API}/usuarios/reset-by-cedula`, { cedula: resetId.trim() });
+            toast('Contraseña restablecida a Clave1234! ✓', 'success');
+            setResetId('');
         } catch (e: any) {
             toast(e.response?.data?.message || 'Error al resetear contraseña', 'error');
         } finally { setResetting(false); }
     };
 
-    const roles = ['Admin', 'Coordinador', 'Lider', 'Operador'];
+    const roles = ['Admin', 'Coordinador', 'Sub-Líder'];
 
     return (
         <div className="space-y-6">
@@ -402,12 +403,22 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
 
             {/* Reset contraseña */}
             <Card>
-                <SectionHeader icon="lock_reset" title="Resetear Contraseña" subtitle="Genera una nueva contraseña temporal para un usuario por su ID" />
+                <SectionHeader icon="lock_reset" title="Resetear Contraseña" subtitle="Restablece la contraseña de un usuario por su cédula" />
                 <div className="p-6">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cédula del usuario</label>
                     <div className="flex gap-3 max-w-lg">
-                        <input type="text" placeholder="ID del usuario (UUID)"
-                            value={resetId} onChange={e => setResetId(e.target.value)}
-                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none font-mono"
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={11}
+                            placeholder="Ej: 00100200300"
+                            value={resetId}
+                            onChange={e => setResetId(e.target.value)}
+                            onKeyDown={(e) => {
+                                const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
+                                if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
+                            }}
+                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
                         />
                         <button onClick={handleReset} disabled={resetting || !resetId.trim()}
                             className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-sm">
@@ -416,7 +427,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                        El ID lo encuentras en la tabla <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">usuarios</code> o en el perfil de la persona.
+                        La contraseña se restablecerá a <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded font-mono">Clave1234!</code>
                     </p>
                 </div>
             </Card>
@@ -622,13 +633,80 @@ const TabSistema = () => {
     );
 };
 
+// ─── ConfirmModal ─────────────────────────────────────────────────────────────
+interface ConfirmModalProps {
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmClass: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+    loading?: boolean;
+}
+const ConfirmModal = ({ open, title, message, confirmLabel, confirmClass, onConfirm, onCancel, loading }: ConfirmModalProps) => {
+    if (!open) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+            <div className="relative bg-white dark:bg-[#1e2a38] rounded-2xl shadow-2xl border border-border-light dark:border-border-dark w-full max-w-md mx-4 p-6 space-y-4">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{message}</p>
+                <div className="flex justify-end gap-3 pt-2">
+                    <button onClick={onCancel} disabled={loading}
+                        className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
+                        Cancelar
+                    </button>
+                    <button onClick={onConfirm} disabled={loading}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 ${confirmClass}`}>
+                        {loading && <Spinner />}
+                        {confirmLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ─── Tab: Candidatos (solo ADMIN) ─────────────────────────────────────────────
+const ADMIN_FORM_DEFAULT = { nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: 'Password123!' };
+
+/** Formatea dígitos crudos de cédula → 000-0000000-0 */
+const fmtCedula = (raw: string) => {
+    const d = raw.replace(/\D/g, '').slice(0, 11);
+    if (d.length <= 3)  return d;
+    if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 10)}-${d.slice(10)}`;
+};
+
+/** Formatea dígitos crudos de teléfono → (000) 000-0000 */
+const fmtTel = (raw: string) => {
+    const d = raw.replace(/\D/g, '').slice(0, 10);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+};
+
 const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
     const [candidatos, setCandidatos] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [nombre, setNombre] = useState('');
     const [descripcion, setDescripcion] = useState('');
     const [saving, setSaving] = useState(false);
+    const [confirm, setConfirm] = useState<{ open: boolean; candidato_id: string; activo: boolean; nombre: string }>({
+        open: false, candidato_id: '', activo: false, nombre: ''
+    });
+    const [toggling, setToggling] = useState(false);
+
+    // Modal Crear Admin
+    const [modalAdmin, setModalAdmin] = useState<{ open: boolean; candidato_id: string; candidato_nombre: string }>({
+        open: false, candidato_id: '', candidato_nombre: ''
+    });
+    const [adminForm, setAdminForm] = useState({ ...ADMIN_FORM_DEFAULT });
+    const [adminLoading, setAdminLoading] = useState(false);
+    const [adminError, setAdminError] = useState('');
+    const [adminFieldErrors, setAdminFieldErrors] = useState<Record<string, string>>({});
+    const [showAdminPassword, setShowAdminPassword] = useState(false);
 
     const load = async () => {
         setLoading(true);
@@ -654,16 +732,233 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
         } finally { setSaving(false); }
     };
 
-    const toggleActivo = async (id: string, activo: boolean) => {
+    const openConfirm = (candidato_id: string, activo: boolean, nombre: string) => {
+        setConfirm({ open: true, candidato_id, activo, nombre });
+    };
+
+    const handleConfirmToggle = async () => {
+        setToggling(true);
         try {
-            await axios.patch(`${API}/candidatos/${id}`, { activo: !activo });
-            setCandidatos(prev => prev.map(c => c.candidato_id === id ? { ...c, activo: !activo } : c));
-            toast(`Candidato ${!activo ? 'activado' : 'desactivado'} ✓`);
-        } catch { toast('Error al actualizar candidato', 'error'); }
+            const newActivo = !confirm.activo;
+            await axios.patch(`${API}/candidatos/${confirm.candidato_id}`, { activo: newActivo });
+            setCandidatos(prev => prev.map(c =>
+                c.candidato_id === confirm.candidato_id ? { ...c, activo: newActivo } : c
+            ));
+            toast(`Candidato ${newActivo ? 'activado' : 'inactivado'} — usuarios ${newActivo ? 'reactivados' : 'bloqueados'} ✓`, 'success');
+        } catch {
+            toast('Error al actualizar candidato', 'error');
+        } finally {
+            setToggling(false);
+            setConfirm(prev => ({ ...prev, open: false }));
+        }
+    };
+
+    const closeAdminModal = () => {
+        setModalAdmin({ open: false, candidato_id: '', candidato_nombre: '' });
+        setAdminForm({ ...ADMIN_FORM_DEFAULT });
+        setAdminError('');
+        setAdminFieldErrors({});
+        setShowAdminPassword(false);
+    };
+
+    const handleCreateAdmin = async () => {
+        setAdminError('');
+        const { nombres, apellidos, cedula, telefono, email_login, password } = adminForm;
+        const errs: Record<string, string> = {};
+        if (!nombres.trim())  errs.nombres   = 'Nombres es obligatorio.';
+        if (!apellidos.trim()) errs.apellidos = 'Apellidos es obligatorio.';
+        if (cedula.length !== 11)  errs.cedula   = 'La cédula debe tener exactamente 11 dígitos.';
+        if (telefono.length !== 10) errs.telefono = 'El teléfono debe tener exactamente 10 dígitos.';
+        if (!email_login.trim()) {
+            errs.email_login = 'El email es obligatorio.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_login.trim())) {
+            errs.email_login = 'Ingresa un email válido.';
+        }
+        if (!password.trim()) errs.password = 'La contraseña es obligatoria.';
+        if (Object.keys(errs).length > 0) { setAdminFieldErrors(errs); return; }
+        setAdminFieldErrors({});
+        setAdminLoading(true);
+        try {
+            await axios.post(`${API}/candidatos/${modalAdmin.candidato_id}/admin`, { nombres, apellidos, cedula, telefono, email_login, password });
+            toast(`Admin creado exitosamente. Login: ${email_login}`, 'success');
+            closeAdminModal();
+        } catch (e: any) {
+            setAdminError(e.response?.data?.message || 'Error al crear el admin.');
+        } finally {
+            setAdminLoading(false);
+        }
     };
 
     return (
         <div className="space-y-6">
+            <ConfirmModal
+                open={confirm.open}
+                title={confirm.activo ? `¿Inactivar "${confirm.nombre}"?` : `¿Activar "${confirm.nombre}"?`}
+                message={confirm.activo
+                    ? 'Al inactivar este candidato, todos sus usuarios serán bloqueados inmediatamente y no podrán iniciar sesión hasta que el candidato sea reactivado.'
+                    : 'Al activar este candidato, todos sus usuarios quedarán habilitados para iniciar sesión nuevamente.'}
+                confirmLabel={confirm.activo ? 'Sí, inactivar' : 'Sí, activar'}
+                confirmClass={confirm.activo ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+                onConfirm={handleConfirmToggle}
+                onCancel={() => setConfirm(prev => ({ ...prev, open: false }))}
+                loading={toggling}
+            />
+
+            {/* Modal Crear Admin */}
+            {modalAdmin.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-blue-600">person_add</span>
+                                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                                    Crear Admin para <span className="text-blue-600">{modalAdmin.candidato_nombre}</span>
+                                </h2>
+                            </div>
+                            <button onClick={closeAdminModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-3 max-h-[70vh] overflow-y-auto">
+                            {adminError && (
+                                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-3 py-2 text-sm">
+                                    <span className="material-symbols-outlined text-base shrink-0">error</span>
+                                    {adminError}
+                                </div>
+                            )}
+
+                            {/* Nombres */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Nombres <span className="text-red-500">*</span></label>
+                                <input type="text" value={adminForm.nombres}
+                                    onChange={e => { setAdminForm(p => ({ ...p, nombres: e.target.value })); setAdminFieldErrors(p => ({ ...p, nombres: '' })); }}
+                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.nombres ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                />
+                                {adminFieldErrors.nombres && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.nombres}</p>}
+                            </div>
+
+                            {/* Apellidos */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Apellidos <span className="text-red-500">*</span></label>
+                                <input type="text" value={adminForm.apellidos}
+                                    onChange={e => { setAdminForm(p => ({ ...p, apellidos: e.target.value })); setAdminFieldErrors(p => ({ ...p, apellidos: '' })); }}
+                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.apellidos ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                />
+                                {adminFieldErrors.apellidos && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.apellidos}</p>}
+                            </div>
+
+                            {/* Cédula */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                    Cédula <span className="text-red-500">*</span>
+                                    <span className="ml-1 font-normal text-gray-400">(000-0000000-0)</span>
+                                </label>
+                                <input
+                                    type="text" inputMode="numeric"
+                                    value={fmtCedula(adminForm.cedula)}
+                                    placeholder="000-0000000-0"
+                                    onChange={e => {
+                                        const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                        setAdminForm(p => ({ ...p, cedula: raw }));
+                                        setAdminFieldErrors(p => ({ ...p, cedula: '' }));
+                                    }}
+                                    onKeyDown={e => {
+                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
+                                        if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
+                                    }}
+                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 font-mono tracking-wider ${adminFieldErrors.cedula ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                />
+                                <div className="flex items-center justify-between mt-1">
+                                    {adminFieldErrors.cedula
+                                        ? <p className="text-xs text-red-500">{adminFieldErrors.cedula}</p>
+                                        : <span />}
+                                    <span className={`text-xs tabular-nums ${adminForm.cedula.length === 11 ? 'text-green-500' : 'text-gray-400'}`}>
+                                        {adminForm.cedula.length}/11
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Teléfono */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                    Teléfono <span className="text-red-500">*</span>
+                                    <span className="ml-1 font-normal text-gray-400">((000) 000-0000)</span>
+                                </label>
+                                <input
+                                    type="text" inputMode="numeric"
+                                    value={fmtTel(adminForm.telefono)}
+                                    placeholder="(809) 000-0000"
+                                    onChange={e => {
+                                        const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                        setAdminForm(p => ({ ...p, telefono: raw }));
+                                        setAdminFieldErrors(p => ({ ...p, telefono: '' }));
+                                    }}
+                                    onKeyDown={e => {
+                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
+                                        if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
+                                    }}
+                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 font-mono tracking-wider ${adminFieldErrors.telefono ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                />
+                                <div className="flex items-center justify-between mt-1">
+                                    {adminFieldErrors.telefono
+                                        ? <p className="text-xs text-red-500">{adminFieldErrors.telefono}</p>
+                                        : <span />}
+                                    <span className={`text-xs tabular-nums ${adminForm.telefono.length === 10 ? 'text-green-500' : 'text-gray-400'}`}>
+                                        {adminForm.telefono.length}/10
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Email */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Email de acceso <span className="text-red-500">*</span></label>
+                                <input type="email" value={adminForm.email_login}
+                                    onChange={e => { setAdminForm(p => ({ ...p, email_login: e.target.value })); setAdminFieldErrors(p => ({ ...p, email_login: '' })); }}
+                                    placeholder="admin@ejemplo.com"
+                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.email_login ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                />
+                                {adminFieldErrors.email_login && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.email_login}</p>}
+                            </div>
+
+                            {/* Contraseña */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Contraseña <span className="text-red-500">*</span></label>
+                                <div className="relative">
+                                    <input
+                                        type={showAdminPassword ? 'text' : 'password'}
+                                        value={adminForm.password}
+                                        onChange={e => { setAdminForm(p => ({ ...p, password: e.target.value })); setAdminFieldErrors(p => ({ ...p, password: '' })); }}
+                                        className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 pr-10 text-sm outline-none focus:ring-1 ${adminFieldErrors.password ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
+                                    />
+                                    <button type="button" onClick={() => setShowAdminPassword(v => !v)}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                        tabIndex={-1}>
+                                        <span className="material-symbols-outlined text-lg">{showAdminPassword ? 'visibility_off' : 'visibility'}</span>
+                                    </button>
+                                </div>
+                                {adminFieldErrors.password && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.password}</p>}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700">
+                            <button onClick={closeAdminModal} disabled={adminLoading}
+                                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
+                                Cancelar
+                            </button>
+                            <button onClick={handleCreateAdmin} disabled={adminLoading}
+                                className="flex items-center gap-2 px-5 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors shadow-sm disabled:opacity-50">
+                                {adminLoading ? <Spinner /> : <span className="material-symbols-outlined text-base">person_add</span>}
+                                Crear Admin
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <Card>
                 <SectionHeader icon="how_to_vote" title="Nuevo Candidato" subtitle="Agrega un candidato/cliente al sistema" />
                 <div className="p-6 space-y-4">
@@ -699,20 +994,43 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
                                     <th className="px-6 py-3 text-left">Nombre</th>
                                     <th className="px-6 py-3 text-left">Descripción</th>
                                     <th className="px-6 py-3 text-left">Creado</th>
-                                    <th className="px-6 py-3 text-center w-24">Estado</th>
+                                    <th className="px-6 py-3 text-center w-52">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                 {candidatos.map(c => (
                                     <tr key={c.candidato_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">{c.nombre}</td>
+                                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${c.activo ? 'bg-green-500' : 'bg-gray-400'}`} />
+                                                {c.nombre}
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-3 text-gray-500 dark:text-gray-400 text-xs">{c.descripcion || '—'}</td>
                                         <td className="px-6 py-3 text-gray-500 text-xs">{new Date(c.fecha_creacion).toLocaleDateString('es-DO')}</td>
                                         <td className="px-6 py-3 text-center">
-                                            <button onClick={() => toggleActivo(c.candidato_id, c.activo)}
-                                                className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${c.activo ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'}`}>
-                                                {c.activo ? 'Activo' : 'Inactivo'}
-                                            </button>
+                                            <div className="flex items-center justify-center gap-2 flex-wrap">
+                                                <button
+                                                    onClick={() => setModalAdmin({ open: true, candidato_id: c.candidato_id, candidato_nombre: c.nombre })}
+                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">person_add</span>
+                                                    Crear Admin
+                                                </button>
+                                                <button
+                                                    onClick={() => openConfirm(c.candidato_id, c.activo, c.nombre)}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                                        c.activo
+                                                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                                                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
+                                                    }`}
+                                                >
+                                                    <span className="material-symbols-outlined text-base">
+                                                        {c.activo ? 'block' : 'check_circle'}
+                                                    </span>
+                                                    {c.activo ? 'Inactivar' : 'Activar'}
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

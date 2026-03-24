@@ -1566,17 +1566,133 @@ router.patch('/candidatos/:id', authenticate, async (req, res, next) => {
     try {
         const { id } = req.params;
         const { activo, nombre, descripcion } = req.body;
-        const r = await pool.query(
-            `UPDATE candidatos SET
-                activo      = COALESCE($1, activo),
-                nombre      = COALESCE($2, nombre),
-                descripcion = COALESCE($3, descripcion)
-             WHERE candidato_id = $4 RETURNING *`,
-            [activo ?? null, nombre?.trim() ?? null, descripcion?.trim() ?? null, id]
-        );
-        if (r.rows.length === 0) return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
-        res.json({ ok: true, data: r.rows[0] });
+
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // 1. Actualizar candidato
+            const r = await client.query(
+                `UPDATE candidatos SET
+                    activo      = COALESCE($1, activo),
+                    nombre      = COALESCE($2, nombre),
+                    descripcion = COALESCE($3, descripcion)
+                 WHERE candidato_id = $4 RETURNING *`,
+                [activo ?? null, nombre?.trim() ?? null, descripcion?.trim() ?? null, id]
+            );
+            if (r.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+            }
+
+            // 2. Cascade: si se cambió el campo activo, sincronizar estado de usuarios
+            if (typeof activo === 'boolean') {
+                const estadoNombre = activo ? 'Activo' : 'Bloqueado';
+                await client.query(
+                    `UPDATE usuarios
+                     SET estado_usuario_id = (
+                         SELECT estado_usuario_id FROM estado_usuario WHERE nombre = $1 LIMIT 1
+                     )
+                     WHERE candidato_id = $2`,
+                    [estadoNombre, id]
+                );
+            }
+
+            await client.query('COMMIT');
+            res.json({ ok: true, data: r.rows[0] });
+        } catch (txErr) {
+            await client.query('ROLLBACK');
+            throw txErr;
+        } finally {
+            client.release();
+        }
     } catch (err) { next(err); }
+});
+
+// POST /api/candidatos/:id/admin — Crear persona + usuario Admin para un candidato
+router.post('/candidatos/:id/admin', authenticate, async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        const { id: candidato_id } = req.params;
+        const { nombres, apellidos, cedula, telefono, email_login, password } = req.body;
+
+        // Validaciones
+        if (!nombres?.trim())     return res.status(400).json({ ok: false, message: 'nombres es requerido' });
+        if (!apellidos?.trim())   return res.status(400).json({ ok: false, message: 'apellidos es requerido' });
+        if (!cedula?.trim())      return res.status(400).json({ ok: false, message: 'cedula es requerida' });
+        if (!telefono?.trim())    return res.status(400).json({ ok: false, message: 'telefono es requerido' });
+        if (!email_login?.trim()) return res.status(400).json({ ok: false, message: 'email_login es requerido' });
+        if (!password?.trim())    return res.status(400).json({ ok: false, message: 'password es requerido' });
+
+        // Verificar que el candidato existe
+        const candCheck = await client.query('SELECT candidato_id FROM candidatos WHERE candidato_id = $1', [candidato_id]);
+        if (candCheck.rows.length === 0)
+            return res.status(404).json({ ok: false, message: 'Candidato no encontrado' });
+
+        await client.query('BEGIN');
+
+        // Lookup estado_persona Activo
+        const estPersRes = await client.query(
+            "SELECT estado_persona_id FROM estado_persona WHERE nombre = 'Activo' LIMIT 1"
+        );
+        const estado_persona_id = estPersRes.rows[0]?.estado_persona_id;
+
+        // Lookup rol Admin
+        const rolRes = await client.query("SELECT rol_id FROM roles WHERE nombre = 'Admin' LIMIT 1");
+        if (rolRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(500).json({ ok: false, message: 'Rol Admin no encontrado en el sistema' });
+        }
+        const rol_id = rolRes.rows[0].rol_id;
+
+        // Lookup estado_usuario Activo
+        const estadoUsrRes = await client.query(
+            "SELECT estado_usuario_id FROM estado_usuario WHERE nombre = 'Activo' LIMIT 1"
+        );
+        const estado_usuario_id = estadoUsrRes.rows[0]?.estado_usuario_id;
+
+        // Lookup primer sector disponible como fallback
+        const sectorRes = await client.query('SELECT sector_id FROM sectores ORDER BY sector_id LIMIT 1');
+        const sector_id = sectorRes.rows[0]?.sector_id || null;
+
+        // Verificar cédula duplicada
+        const cedDup = await client.query('SELECT persona_id FROM personas WHERE cedula = $1 LIMIT 1', [cedula.trim()]);
+        if (cedDup.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ ok: false, message: 'Ya existe una persona con esa cédula' });
+        }
+
+        // Crear persona vinculada al candidato
+        const personaRes = await client.query(
+            `INSERT INTO personas (nombres, apellidos, cedula, telefono, email, estado_persona_id, sector_id, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING persona_id`,
+            [nombres.trim(), apellidos.trim(), cedula.trim(), telefono.trim(),
+             email_login.trim(), estado_persona_id, sector_id, candidato_id]
+        );
+        const persona_id = personaRes.rows[0].persona_id;
+
+        // Crear usuario Admin
+        const password_hash = await bcrypt.hash(password.trim(), 12);
+        const userRes = await client.query(
+            `INSERT INTO usuarios (persona_id, email_login, password_hash, rol_id, estado_usuario_id, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING usuario_id, email_login`,
+            [persona_id, email_login.trim(), password_hash, rol_id, estado_usuario_id, candidato_id]
+        );
+
+        await client.query('COMMIT');
+        res.status(201).json({
+            ok: true,
+            data: { usuario_id: userRes.rows[0].usuario_id, login: userRes.rows[0].email_login }
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        if (err.code === '23505') {
+            return res.status(409).json({ ok: false, message: 'El email ya está en uso por otro usuario' });
+        }
+        next(err);
+    } finally {
+        client.release();
+    }
 });
 
 // GET /dashboard/crecimiento — personas registradas en los últimos 30 días agrupadas por día

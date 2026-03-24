@@ -74,7 +74,23 @@ u.usuario_id, u.persona_id, u.password_hash,
             return res.status(403).json({ ok: false, code: 'USER_INACTIVE', message: 'Usuario inactivo o bloqueado por el administrador' });
         }
 
-        // 3. Verificar password
+        // 3. Verificar candidato activo (excepto Candidato Principal)
+        const CANDIDATO_PRINCIPAL = '00000000-0000-0000-0000-000000000001';
+        if (user.candidato_id && user.candidato_id !== CANDIDATO_PRINCIPAL) {
+            const candRes = await pool.query(
+                'SELECT activo FROM candidatos WHERE candidato_id = $1 LIMIT 1',
+                [user.candidato_id]
+            );
+            if (candRes.rows.length > 0 && !candRes.rows[0].activo) {
+                return res.status(403).json({
+                    ok: false,
+                    code: 'CANDIDATO_INACTIVE',
+                    message: 'Acceso suspendido. Contacte al administrador.'
+                });
+            }
+        }
+
+        // 4. Verificar password
         if (!user.password_hash) {
             return res.status(401).json({ ok: false, code: 'NO_PASSWORD', message: 'Este usuario no tiene contraseña configurada' });
         }
