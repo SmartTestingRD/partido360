@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import ConfirmModal from '../components/ConfirmModal';
 
-const API = import.meta.env.VITE_API_URL || '/api';
+const API = 'http://localhost:3001/api';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'info';
@@ -29,15 +30,10 @@ const ToastContainer = ({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
 );
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
-type Tab = 'meta' | 'usuarios' | 'catalogos' | 'sistema' | 'candidatos';
+type Tab = 'meta' | 'usuarios' | 'catalogos' | 'sistema' | 'sectores' | 'lideres' | 'fuentes' | 'candidatos';
 
 interface TabDef { id: Tab; label: string; icon: string; }
-const BASE_TABS: TabDef[] = [
-    { id: 'meta', label: 'Meta Global', icon: 'flag' },
-    { id: 'usuarios', label: 'Usuarios', icon: 'manage_accounts' },
-    { id: 'catalogos', label: 'Catálogos', icon: 'category' },
-    { id: 'sistema', label: 'Sistema', icon: 'settings' },
-];
+
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -74,6 +70,7 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     const [globalMeta, setGlobalMeta] = useState('');
     const [applyingGlobal, setApplyingGlobal] = useState(false);
     const [search, setSearch] = useState('');
+    const [confirmMeta, setConfirmMeta] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -106,7 +103,12 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     const applyGlobal = async () => {
         const val = parseInt(globalMeta);
         if (!val || val < 1) { toast('Ingresa un valor válido (≥ 1)', 'error'); return; }
-        if (!window.confirm(`¿Aplicar meta de ${val} a TODOS los líderes?`)) return;
+        setConfirmMeta(true);
+    };
+
+    const doApplyGlobal = async () => {
+        const val = parseInt(globalMeta);
+        setConfirmMeta(false);
         setApplyingGlobal(true);
         let ok = 0, fail = 0;
         for (const l of lideres) {
@@ -127,6 +129,15 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
 
     return (
         <div className="space-y-6">
+            <ConfirmModal
+                open={confirmMeta}
+                title="¿Aplicar meta global?"
+                message={`La nueva meta será ${globalMeta} personas para TODOS los líderes. Esta acción sobrescribe las metas individuales.`}
+                confirmLabel="Sí, aplicar a todos"
+                confirmColor="bg-amber-500 hover:bg-amber-600"
+                onConfirm={doApplyGlobal}
+                onCancel={() => setConfirmMeta(false)}
+            />
             {/* Meta Global Masiva */}
             <Card>
                 <SectionHeader icon="flag" title="Aplicar Meta Global" subtitle="Establece la misma meta para todos los líderes de una vez" />
@@ -164,11 +175,11 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
                         />
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto -mx-px">
                     {loading ? (
                         <div className="p-10 flex justify-center"><Spinner /></div>
                     ) : (
-                        <table className="w-full text-sm">
+                        <table className="min-w-[600px] w-full text-sm">
                             <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
                                 <tr>
                                     <th className="px-6 py-3 text-left">Líder</th>
@@ -221,46 +232,10 @@ const TabMetaGlobal = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     );
 };
 
-// ─── Helpers para badge de rol ────────────────────────────────────────────────
-const rolBadge = (rol: string) => {
-    const map: Record<string, string> = {
-        'Admin':     'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-        'Coordinador': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-        'Sub-Líder': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800',
-    };
-    return map[rol] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700';
-};
-
 // ─── Tab: Usuarios ────────────────────────────────────────────────────────────
 const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
-    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
-    const isSuperAdminTab = userObj?.rol_nombre?.toUpperCase() === 'ADMIN' && userObj?.candidato_id === SUPER_ADMIN_ID;
-
-    // Lista de usuarios
-    const [usuarios, setUsuarios] = useState<any[]>([]);
-    const [loadingUsuarios, setLoadingUsuarios] = useState(true);
-    const [resettingId, setResettingId] = useState<string | null>(null);
-
-    const loadUsuarios = async () => {
-        setLoadingUsuarios(true);
-        try {
-            const r = await axios.get(`${API}/usuarios/lista`);
-            setUsuarios(r.data.data || []);
-        } catch { /* silencioso */ }
-        finally { setLoadingUsuarios(false); }
-    };
-
-    useEffect(() => { loadUsuarios(); }, []);
-
-    const handleResetUsuario = async (usuario_id: string, nombre: string) => {
-        setResettingId(usuario_id);
-        try {
-            await axios.post(`${API}/usuarios/${usuario_id}/reset-password`, { generar_password_temporal: true });
-            toast(`Contraseña reseteada para ${nombre} ✓`, 'success');
-        } catch (e: any) {
-            toast(e.response?.data?.message || 'Error al resetear contraseña', 'error');
-        } finally { setResettingId(null); }
-    };
+    const userStr = localStorage.getItem('user');
+    const currentUserRole = userStr ? JSON.parse(userStr).rol_nombre : '';
 
     const [form, setForm] = useState({
         persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador',
@@ -270,7 +245,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     const [searchQ, setSearchQ] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
-    const [resetId, setResetId] = useState('');
+    const [resetCedula, setResetCedula] = useState('');
     const [resetting, setResetting] = useState(false);
     const [lastCreated, setLastCreated] = useState<{ login: string; password_temporal?: string } | null>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -292,6 +267,16 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     const handleCreate = async () => {
         if (!form.persona_id) { toast('Selecciona una persona', 'error'); return; }
         if (!form.email_login && !form.username) { toast('Ingresa email o username', 'error'); return; }
+        
+        // --- Validación de Formato de Email ---
+        if (form.email_login) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(form.email_login)) {
+                toast('El formato del correo electrónico no es válido.', 'error');
+                return;
+            }
+        }
+
         setSaving(true);
         try {
             const payload: any = {
@@ -308,7 +293,6 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
             toast('Usuario creado exitosamente ✓', 'success');
             setForm({ persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador', generar_password_temporal: true, password: '' });
             setSearchQ(''); setSearchResults([]);
-            loadUsuarios();
         } catch (e: any) {
             const msg = e.response?.data?.message || 'Error al crear usuario';
             toast(msg, 'error');
@@ -316,80 +300,24 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     };
 
     const handleReset = async () => {
-        if (!resetId.trim()) { toast('Ingresa la cédula del usuario', 'error'); return; }
+        const cedula = resetCedula.replace(/\D/g, '');
+        if (!cedula) { toast('Ingresa la cédula del usuario', 'error'); return; }
         setResetting(true);
         try {
-            await axios.post(`${API}/usuarios/reset-by-cedula`, { cedula: resetId.trim() });
-            toast('Contraseña restablecida a Clave1234! ✓', 'success');
-            setResetId('');
+            await axios.post(`${API}/usuarios/reset-by-cedula`, { cedula }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            toast('Contraseña restablecida. El usuario deberá ingresar con Clave1234!', 'success');
+            setResetCedula('');
         } catch (e: any) {
             toast(e.response?.data?.message || 'Error al resetear contraseña', 'error');
         } finally { setResetting(false); }
     };
 
-    const roles = ['Admin', 'Coordinador', 'Sub-Líder'];
+    const roles = ['Coordinador', 'Sub-Lider'];
 
     return (
         <div className="space-y-6">
-            {/* Lista de usuarios */}
-            <Card>
-                <SectionHeader icon="manage_accounts" title="Usuarios del Sistema" subtitle="Todos los accesos registrados" />
-                {loadingUsuarios ? (
-                    <div className="p-10 flex justify-center"><Spinner /></div>
-                ) : usuarios.length === 0 ? (
-                    <div className="py-10 text-center text-gray-400 text-sm">No hay usuarios registrados</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                <tr>
-                                    <th className="px-5 py-3 text-left">Nombre</th>
-                                    <th className="px-5 py-3 text-left">Cédula</th>
-                                    <th className="px-5 py-3 text-left">Login</th>
-                                    <th className="px-5 py-3 text-left">Rol</th>
-                                    {isSuperAdminTab && <th className="px-5 py-3 text-left">Candidato</th>}
-                                    <th className="px-5 py-3 text-center">Estado</th>
-                                    <th className="px-5 py-3 text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {usuarios.map(u => (
-                                    <tr key={u.usuario_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                                        <td className="px-5 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">{u.nombre_completo}</td>
-                                        <td className="px-5 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{u.cedula ? fmtCedula(u.cedula) : '—'}</td>
-                                        <td className="px-5 py-3 text-gray-600 dark:text-gray-300 text-xs">{u.email_login || u.username || '—'}</td>
-                                        <td className="px-5 py-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${rolBadge(u.rol_nombre)}`}>
-                                                {u.rol_nombre}
-                                            </span>
-                                        </td>
-                                        {isSuperAdminTab && (
-                                            <td className="px-5 py-3 text-gray-500 dark:text-gray-400 text-xs">{u.candidato || '—'}</td>
-                                        )}
-                                        <td className="px-5 py-3 text-center">
-                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${u.activo ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
-                                                <span className={`w-2 h-2 rounded-full shrink-0 ${u.activo ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                                {u.activo ? 'Activo' : 'Inactivo'}
-                                            </span>
-                                        </td>
-                                        <td className="px-5 py-3 text-center">
-                                            <button
-                                                onClick={() => handleResetUsuario(u.usuario_id, u.nombre_completo)}
-                                                disabled={resettingId === u.usuario_id}
-                                                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 dark:text-amber-400 dark:border-amber-800 transition-colors disabled:opacity-50"
-                                            >
-                                                {resettingId === u.usuario_id ? <Spinner /> : <span className="material-symbols-outlined text-sm">lock_reset</span>}
-                                                Resetear clave
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </Card>
-
             {/* Crear usuario */}
             <Card>
                 <SectionHeader icon="person_add" title="Crear Acceso de Usuario" subtitle="Vincula una persona existente a un rol de acceso al sistema" />
@@ -415,7 +343,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
                                             <p className="text-sm font-medium text-gray-900 dark:text-white">{p.nombre_completo}</p>
                                             <p className="text-xs text-gray-400">{p.telefono} · {p.sector_nombre}</p>
                                         </span>
-                                        {p.is_lider && <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded font-semibold">LÍDER</span>}
+                                        {p.is_lider && <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded font-semibold uppercase">SUB-LÍDER</span>}
                                     </button>
                                 ))}
                             </div>
@@ -495,35 +423,41 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
             </Card>
 
             {/* Reset contraseña */}
+            {currentUserRole?.toUpperCase() === 'ADMIN' && (
             <Card>
-                <SectionHeader icon="lock_reset" title="Resetear Contraseña" subtitle="Restablece la contraseña de un usuario por su cédula" />
+                <SectionHeader icon="lock_reset" title="Resetear Contraseña" subtitle="Restablece la contraseña de un usuario a Clave1234!" />
                 <div className="p-6">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Cédula del usuario</label>
+                    <p className="text-sm text-amber-600 dark:text-amber-400 font-medium mb-3 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-base">info</span>
+                        La nueva contraseña será: <code className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded ml-1">Clave1234!</code>
+                    </p>
                     <div className="flex gap-3 max-w-lg">
                         <input
                             type="text"
                             inputMode="numeric"
-                            maxLength={11}
-                            placeholder="Ej: 00100200300"
-                            value={resetId}
-                            onChange={e => setResetId(e.target.value)}
-                            onKeyDown={(e) => {
-                                const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
-                                if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
+                            placeholder="Cédula del usuario (Ej: 00100200300)"
+                            value={resetCedula}
+                            onChange={e => setResetCedula(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                            onKeyDown={e => {
+                                if (!/[0-9]/.test(e.key) && !['Backspace','Delete','Tab','ArrowLeft','ArrowRight'].includes(e.key)) {
+                                    e.preventDefault();
+                                }
                             }}
-                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
+                            maxLength={11}
+                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none font-mono"
                         />
-                        <button onClick={handleReset} disabled={resetting || !resetId.trim()}
+                        <button onClick={handleReset} disabled={resetting || !resetCedula.trim()}
                             className="flex items-center gap-2 bg-amber-500 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors shadow-sm">
                             {resetting ? <Spinner /> : <span className="material-symbols-outlined text-lg">lock_reset</span>}
                             Resetear
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                        La contraseña se restablecerá a <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded font-mono">Clave1234!</code>
+                        Ingresa la cédula de la persona cuyo acceso deseas restablecer.
                     </p>
                 </div>
             </Card>
+            )}
         </div>
     );
 };
@@ -584,7 +518,7 @@ const TabCatalogos = () => {
                 // Roles: hardcoded from what we know
                 setRoles([
                     { id: '1', nombre: 'Admin' }, { id: '2', nombre: 'Coordinador' },
-                    { id: '3', nombre: 'Lider' }, { id: '4', nombre: 'Operador' },
+                    { id: '3', nombre: 'Sub-Lider' }
                 ]);
             } catch { /* silencioso */ }
             finally { setLoading(false); }
@@ -613,14 +547,9 @@ const TabCatalogos = () => {
 };
 
 // ─── Tab: Sistema ─────────────────────────────────────────────────────────────
-const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+const TabSistema = () => {
     const [status, setStatus] = useState<'checking' | 'ok' | 'error'>('checking');
     const [dbInfo, setDbInfo] = useState<{ sectores: number; lideres: number; personas: number } | null>(null);
-
-    // Cambiar contraseña
-    const [pwForm, setPwForm] = useState({ actual: '', nuevo: '', confirmar: '' });
-    const [showPw, setShowPw] = useState({ actual: false, nuevo: false, confirmar: false });
-    const [pwLoading, setPwLoading] = useState(false);
 
     useEffect(() => {
         const check = async () => {
@@ -650,7 +579,7 @@ const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
     ];
 
     const infoRows = [
-        { key: 'Aplicación', value: 'SIGED360' },
+        { key: 'Aplicación', value: 'Partido360' },
         { key: 'Backend', value: 'Node.js + Express + PostgreSQL (Neon)' },
         { key: 'Frontend', value: 'React + TypeScript + Tailwind v4' },
         { key: 'Auth', value: 'JWT — 24h de expiración' },
@@ -658,62 +587,8 @@ const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
         { key: 'Versión', value: 'v1.0.0 — Build estable' },
     ];
 
-    const handleCambiarPassword = async () => {
-        if (!pwForm.actual || !pwForm.nuevo || !pwForm.confirmar) {
-            toast('Completa todos los campos', 'error'); return;
-        }
-        if (pwForm.nuevo.length < 8) {
-            toast('La nueva contraseña debe tener al menos 8 caracteres', 'error'); return;
-        }
-        if (pwForm.nuevo !== pwForm.confirmar) {
-            toast('La nueva contraseña y la confirmación no coinciden', 'error'); return;
-        }
-        setPwLoading(true);
-        try {
-            await axios.put(`${API}/usuarios/cambiar-password`, { password_actual: pwForm.actual, password_nuevo: pwForm.nuevo });
-            toast('Contraseña actualizada correctamente ✓', 'success');
-            setPwForm({ actual: '', nuevo: '', confirmar: '' });
-        } catch (e: any) {
-            toast(e.response?.data?.message || 'Error al cambiar contraseña', 'error');
-        } finally { setPwLoading(false); }
-    };
-
     return (
         <div className="space-y-6">
-            {/* Cambiar contraseña */}
-            <Card>
-                <SectionHeader icon="key" title="Cambiar mi Contraseña" subtitle="Actualiza tu contraseña de acceso al sistema" />
-                <div className="p-6 space-y-4 max-w-md">
-                    {(['actual', 'nuevo', 'confirmar'] as const).map(field => {
-                        const labels = { actual: 'Contraseña actual', nuevo: 'Nueva contraseña', confirmar: 'Confirmar nueva contraseña' };
-                        return (
-                            <div key={field}>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{labels[field]}</label>
-                                <div className="relative">
-                                    <input
-                                        type={showPw[field] ? 'text' : 'password'}
-                                        value={pwForm[field]}
-                                        onChange={e => setPwForm(p => ({ ...p, [field]: e.target.value }))}
-                                        placeholder={field === 'nuevo' ? 'Mínimo 8 caracteres' : ''}
-                                        className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 pr-10 text-sm focus:border-primary outline-none"
-                                    />
-                                    <button type="button" tabIndex={-1}
-                                        onClick={() => setShowPw(p => ({ ...p, [field]: !p[field] }))}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                                        <span className="material-symbols-outlined text-lg">{showPw[field] ? 'visibility_off' : 'visibility'}</span>
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    <button onClick={handleCambiarPassword} disabled={pwLoading}
-                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-blue-500/30 mt-2">
-                        {pwLoading ? <Spinner /> : <span className="material-symbols-outlined text-lg">lock</span>}
-                        Actualizar contraseña
-                    </button>
-                </div>
-            </Card>
-
             {/* Estado del backend */}
             <Card>
                 <SectionHeader icon="cloud_done" title="Estado del Servidor" subtitle="Conectividad con el backend y base de datos" />
@@ -770,8 +645,7 @@ const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
                         {[
                             { rol: 'ADMIN', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200', desc: 'Acceso total: lectura, escritura y administración de cualquier recurso.' },
                             { rol: 'COORDINADOR', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200', desc: 'Acceso global de lectura y escritura. No puede inactivar líderes ajenos.' },
-                            { rol: 'LIDER', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200', desc: 'Solo ve su árbol de descendientes (CTE recursivo). Edita solo su propia meta.' },
-                            { rol: 'OPERADOR', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200', desc: 'Alias de COORDINADOR (legacy). Mismos permisos.' },
+                            { rol: 'SUB_LIDER', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200', desc: 'Solo ve su árbol de descendientes (CTE recursivo). Edita solo su propia meta.' },
                         ].map(r => (
                             <div key={r.rol} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${r.color}`}>{r.rol}</span>
@@ -785,431 +659,606 @@ const TabSistema = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
     );
 };
 
-// ─── ConfirmModal ─────────────────────────────────────────────────────────────
-interface ConfirmModalProps {
-    open: boolean;
-    title: string;
-    message: string;
-    confirmLabel: string;
-    confirmClass: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-    loading?: boolean;
-}
-const ConfirmModal = ({ open, title, message, confirmLabel, confirmClass, onConfirm, onCancel, loading }: ConfirmModalProps) => {
-    if (!open) return null;
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-            <div className="relative bg-white dark:bg-[#1e2a38] rounded-2xl shadow-2xl border border-border-light dark:border-border-dark w-full max-w-md mx-4 p-6 space-y-4">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">{message}</p>
-                <div className="flex justify-end gap-3 pt-2">
-                    <button onClick={onCancel} disabled={loading}
-                        className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50">
-                        Cancelar
-                    </button>
-                    <button onClick={onConfirm} disabled={loading}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 ${confirmClass}`}>
-                        {loading && <Spinner />}
-                        {confirmLabel}
-                    </button>
-                </div>
+// ─── Tab: Sectores ────────────────────────────────────────────────────────────
+const TabSectores = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+  const [sectores, setSectores] = useState<{sector_id: string, nombre: string, activo: boolean}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newNombre, setNewNombre] = useState('');
+  const [editId, setEditId] = useState<string|null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const authHeader = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.get('http://localhost:3001/api/sectores/todos', authHeader);
+      setSectores(r.data.data);
+    } catch { toast('Error cargando centros', 'error'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!newNombre.trim()) return;
+    setSaving(true);
+    try {
+      await axios.post('http://localhost:3001/api/sectores', { nombre: newNombre }, authHeader);
+      toast('Centro agregado ✓', 'success');
+      setNewNombre('');
+      load();
+    } catch { toast('Error al agregar', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleEdit = async (id: string) => {
+    if (!editNombre.trim()) return;
+    try {
+      await axios.put(`http://localhost:3001/api/sectores/${id}`, { nombre: editNombre }, authHeader);
+      toast('Actualizado ✓', 'success');
+      setEditId(null);
+      load();
+    } catch { toast('Error al actualizar', 'error'); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`http://localhost:3001/api/sectores/${confirmDeleteId}`, authHeader);
+      toast('Centro de votación eliminado ✓', 'success');
+      setSectores(prev => prev.filter(s => s.sector_id !== confirmDeleteId));
+    } catch (e: any) {
+      toast(e.response?.data?.message || 'Error al eliminar', 'error');
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const confirmingNombre = sectores.find(s => s.sector_id === confirmDeleteId)?.nombre || '';
+
+  return (
+    <div className="space-y-6">
+      <ConfirmModal
+        open={!!confirmDeleteId}
+        title="¿Eliminar centro de votación?"
+        message={`"${confirmingNombre}" será eliminado permanentemente. Esta acción no se puede deshacer.`}
+        confirmLabel={deleting ? 'Eliminando...' : 'Eliminar'}
+        confirmColor="bg-red-600 hover:bg-red-700"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+      <Card>
+        <SectionHeader icon="add_location" title="Agregar Centro de Votación" subtitle="Registra un nuevo centro de votación en el sistema" />
+        <div className="p-6 flex gap-3">
+          <input
+            type="text"
+            placeholder="Nombre del centro de votación..."
+            value={newNombre}
+            onChange={e => setNewNombre(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={saving || !newNombre.trim()}
+            className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm">
+            {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">add</span>}
+            Agregar
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <SectionHeader icon="location_on" title="Centros Registrados" subtitle={`${sectores.length} total`} />
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {loading ? (
+            <div className="p-8 flex justify-center"><Spinner /></div>
+          ) : sectores.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">No hay centros registrados</div>
+          ) : sectores.map(s => (
+            <div key={s.sector_id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+              {editId === s.sector_id ? (
+                <>
+                  <input
+                    value={editNombre}
+                    onChange={e => setEditNombre(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleEdit(s.sector_id)}
+                    className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-1.5 text-sm focus:border-primary outline-none"
+                    autoFocus
+                  />
+                  <button onClick={() => handleEdit(s.sector_id)} className="text-green-600 hover:text-green-700 font-semibold text-sm transition-colors">Guardar</button>
+                  <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm transition-colors">Cancelar</button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{s.nombre}</span>
+                  <button
+                    onClick={() => { setEditId(s.sector_id); setEditNombre(s.nombre); }}
+                    className="text-gray-400 hover:text-primary transition-colors"
+                    title="Editar">
+                    <span className="material-symbols-outlined text-xl">edit</span>
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteId(s.sector_id)}
+                    className="text-gray-400 hover:text-red-600 transition-colors"
+                    title="Eliminar">
+                    <span className="material-symbols-outlined text-xl">delete</span>
+                  </button>
+                </>
+              )}
             </div>
+          ))}
         </div>
-    );
+      </Card>
+    </div>
+  );
 };
 
-// ─── Tab: Candidatos (solo ADMIN) ─────────────────────────────────────────────
-const ADMIN_FORM_DEFAULT = { nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: 'Password123!' };
+// ─── Tab: Líderes ─────────────────────────────────────────────────────────────
+const TabLideres = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+  const [lideres, setLideres] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
-/** Formatea dígitos crudos de cédula → 000-0000000-0 */
-const fmtCedula = (raw: string) => {
-    const d = raw.replace(/\D/g, '').slice(0, 11);
-    if (d.length <= 3)  return d;
-    if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3)}`;
-    return `${d.slice(0, 3)}-${d.slice(3, 10)}-${d.slice(10)}`;
-};
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.get('http://localhost:3001/api/lideres-resumen?pageSize=100');
+      setLideres(r.data.data);
+    } catch { toast('Error cargando líderes', 'error'); }
+    finally { setLoading(false); }
+  };
 
-/** Formatea dígitos crudos de teléfono → (000) 000-0000 */
-const fmtTel = (raw: string) => {
-    const d = raw.replace(/\D/g, '').slice(0, 10);
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-};
+  useEffect(() => { load(); }, []);
 
-const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
-    const [candidatos, setCandidatos] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [nombre, setNombre] = useState('');
-    const [descripcion, setDescripcion] = useState('');
-    const [saving, setSaving] = useState(false);
-    const [confirm, setConfirm] = useState<{ open: boolean; candidato_id: string; activo: boolean; nombre: string }>({
-        open: false, candidato_id: '', activo: false, nombre: ''
-    });
-    const [toggling, setToggling] = useState(false);
+  const filtered = lideres.filter(l =>
+    l.nombre_completo.toLowerCase().includes(search.toLowerCase()) ||
+    (l.sector_nombre || '').toLowerCase().includes(search.toLowerCase())
+  );
 
-    // Modal Crear Admin
-    const [modalAdmin, setModalAdmin] = useState<{ open: boolean; candidato_id: string; candidato_nombre: string }>({
-        open: false, candidato_id: '', candidato_nombre: ''
-    });
-    const [adminForm, setAdminForm] = useState({ ...ADMIN_FORM_DEFAULT });
-    const [adminLoading, setAdminLoading] = useState(false);
-    const [adminError, setAdminError] = useState('');
-    const [adminFieldErrors, setAdminFieldErrors] = useState<Record<string, string>>({});
-    const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const handleToggle = async (liderId: string, estadoNombre: string) => {
+    const isActivo = estadoNombre.toLowerCase() === 'activo';
+    try {
+      const estRes = await axios.get('http://localhost:3001/api/estado-lider');
+      const estados = estRes.data.data;
+      const target = estados.find((e: any) => e.nombre.toLowerCase() === (isActivo ? 'inactivo' : 'activo'));
+      if (!target) return;
+      await axios.put(`http://localhost:3001/api/lideres/${liderId}`, { estado_lider_id: target.estado_lider_id });
+      toast(`Líder ${isActivo ? 'inactivado' : 'activado'} ✓`, 'success');
+      load();
+    } catch { toast('Error al cambiar estado', 'error'); }
+  };
 
-    const load = async () => {
-        setLoading(true);
-        try {
-            const r = await axios.get(`${API}/candidatos`);
-            setCandidatos(r.data.data || []);
-        } catch { toast('Error cargando candidatos', 'error'); }
-        finally { setLoading(false); }
-    };
+  const getProgressColor = (p: number) => p >= 100 ? 'bg-green-500' : p >= 50 ? 'bg-blue-500' : 'bg-red-400';
 
-    useEffect(() => { load(); }, []);
-
-    const handleCreate = async () => {
-        if (!nombre.trim()) { toast('El nombre es requerido', 'error'); return; }
-        setSaving(true);
-        try {
-            await axios.post(`${API}/candidatos`, { nombre: nombre.trim(), descripcion: descripcion.trim() || null });
-            toast('Candidato creado ✓', 'success');
-            setNombre(''); setDescripcion('');
-            load();
-        } catch (e: any) {
-            toast(e.response?.data?.message || 'Error al crear candidato', 'error');
-        } finally { setSaving(false); }
-    };
-
-    const openConfirm = (candidato_id: string, activo: boolean, nombre: string) => {
-        setConfirm({ open: true, candidato_id, activo, nombre });
-    };
-
-    const handleConfirmToggle = async () => {
-        setToggling(true);
-        try {
-            const newActivo = !confirm.activo;
-            await axios.patch(`${API}/candidatos/${confirm.candidato_id}`, { activo: newActivo });
-            setCandidatos(prev => prev.map(c =>
-                c.candidato_id === confirm.candidato_id ? { ...c, activo: newActivo } : c
-            ));
-            toast(`Candidato ${newActivo ? 'activado' : 'inactivado'} — usuarios ${newActivo ? 'reactivados' : 'bloqueados'} ✓`, 'success');
-        } catch {
-            toast('Error al actualizar candidato', 'error');
-        } finally {
-            setToggling(false);
-            setConfirm(prev => ({ ...prev, open: false }));
-        }
-    };
-
-    const closeAdminModal = () => {
-        setModalAdmin({ open: false, candidato_id: '', candidato_nombre: '' });
-        setAdminForm({ ...ADMIN_FORM_DEFAULT });
-        setAdminError('');
-        setAdminFieldErrors({});
-        setShowAdminPassword(false);
-    };
-
-    const handleCreateAdmin = async () => {
-        setAdminError('');
-        const { nombres, apellidos, cedula, telefono, email_login, password } = adminForm;
-        const errs: Record<string, string> = {};
-        if (!nombres.trim())  errs.nombres   = 'Nombres es obligatorio.';
-        if (!apellidos.trim()) errs.apellidos = 'Apellidos es obligatorio.';
-        if (cedula.length !== 11)  errs.cedula   = 'La cédula debe tener exactamente 11 dígitos.';
-        if (telefono.length !== 10) errs.telefono = 'El teléfono debe tener exactamente 10 dígitos.';
-        if (!email_login.trim()) {
-            errs.email_login = 'El email es obligatorio.';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_login.trim())) {
-            errs.email_login = 'Ingresa un email válido.';
-        }
-        if (!password.trim()) errs.password = 'La contraseña es obligatoria.';
-        if (Object.keys(errs).length > 0) { setAdminFieldErrors(errs); return; }
-        setAdminFieldErrors({});
-        setAdminLoading(true);
-        try {
-            await axios.post(`${API}/candidatos/${modalAdmin.candidato_id}/admin`, { nombres, apellidos, cedula, telefono, email_login, password });
-            toast(`Admin creado exitosamente. Login: ${email_login}`, 'success');
-            closeAdminModal();
-        } catch (e: any) {
-            setAdminError(e.response?.data?.message || 'Error al crear el admin.');
-        } finally {
-            setAdminLoading(false);
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <ConfirmModal
-                open={confirm.open}
-                title={confirm.activo ? `¿Inactivar "${confirm.nombre}"?` : `¿Activar "${confirm.nombre}"?`}
-                message={confirm.activo
-                    ? 'Al inactivar este candidato, todos sus usuarios serán bloqueados inmediatamente y no podrán iniciar sesión hasta que el candidato sea reactivado.'
-                    : 'Al activar este candidato, todos sus usuarios quedarán habilitados para iniciar sesión nuevamente.'}
-                confirmLabel={confirm.activo ? 'Sí, inactivar' : 'Sí, activar'}
-                confirmClass={confirm.activo ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
-                onConfirm={handleConfirmToggle}
-                onCancel={() => setConfirm(prev => ({ ...prev, open: false }))}
-                loading={toggling}
+  return (
+    <div className="space-y-6">
+      <Card>
+        <SectionHeader icon="supervisor_account" title="Mantenimiento de Líderes" subtitle="Gestiona el estado y progreso de todos los líderes" />
+        <div className="p-4 border-b border-border-light dark:border-border-dark">
+          <div className="relative max-w-xs">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-gray-400 text-xl">search</span>
+            <input
+              type="text" placeholder="Buscar líder o sector..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
             />
-
-            {/* Modal Crear Admin */}
-            {modalAdmin.open && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md">
-                        {/* Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                            <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-blue-600">person_add</span>
-                                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                                    Crear Admin para <span className="text-blue-600">{modalAdmin.candidato_nombre}</span>
-                                </h2>
-                            </div>
-                            <button onClick={closeAdminModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
-                        </div>
-
-                        {/* Body */}
-                        <div className="p-6 space-y-3 max-h-[70vh] overflow-y-auto">
-                            {adminError && (
-                                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-3 py-2 text-sm">
-                                    <span className="material-symbols-outlined text-base shrink-0">error</span>
-                                    {adminError}
-                                </div>
-                            )}
-
-                            {/* Nombres */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Nombres <span className="text-red-500">*</span></label>
-                                <input type="text" value={adminForm.nombres}
-                                    onChange={e => { setAdminForm(p => ({ ...p, nombres: e.target.value })); setAdminFieldErrors(p => ({ ...p, nombres: '' })); }}
-                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.nombres ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                />
-                                {adminFieldErrors.nombres && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.nombres}</p>}
-                            </div>
-
-                            {/* Apellidos */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Apellidos <span className="text-red-500">*</span></label>
-                                <input type="text" value={adminForm.apellidos}
-                                    onChange={e => { setAdminForm(p => ({ ...p, apellidos: e.target.value })); setAdminFieldErrors(p => ({ ...p, apellidos: '' })); }}
-                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.apellidos ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                />
-                                {adminFieldErrors.apellidos && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.apellidos}</p>}
-                            </div>
-
-                            {/* Cédula */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                    Cédula <span className="text-red-500">*</span>
-                                    <span className="ml-1 font-normal text-gray-400">(000-0000000-0)</span>
-                                </label>
-                                <input
-                                    type="text" inputMode="numeric"
-                                    value={fmtCedula(adminForm.cedula)}
-                                    placeholder="000-0000000-0"
-                                    onChange={e => {
-                                        const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
-                                        setAdminForm(p => ({ ...p, cedula: raw }));
-                                        setAdminFieldErrors(p => ({ ...p, cedula: '' }));
-                                    }}
-                                    onKeyDown={e => {
-                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
-                                        if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
-                                    }}
-                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 font-mono tracking-wider ${adminFieldErrors.cedula ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                />
-                                <div className="flex items-center justify-between mt-1">
-                                    {adminFieldErrors.cedula
-                                        ? <p className="text-xs text-red-500">{adminFieldErrors.cedula}</p>
-                                        : <span />}
-                                    <span className={`text-xs tabular-nums ${adminForm.cedula.length === 11 ? 'text-green-500' : 'text-gray-400'}`}>
-                                        {adminForm.cedula.length}/11
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Teléfono */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                    Teléfono <span className="text-red-500">*</span>
-                                    <span className="ml-1 font-normal text-gray-400">((000) 000-0000)</span>
-                                </label>
-                                <input
-                                    type="text" inputMode="numeric"
-                                    value={fmtTel(adminForm.telefono)}
-                                    placeholder="(809) 000-0000"
-                                    onChange={e => {
-                                        const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
-                                        setAdminForm(p => ({ ...p, telefono: raw }));
-                                        setAdminFieldErrors(p => ({ ...p, telefono: '' }));
-                                    }}
-                                    onKeyDown={e => {
-                                        const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight'];
-                                        if (!/^[0-9]$/.test(e.key) && !allowed.includes(e.key)) e.preventDefault();
-                                    }}
-                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 font-mono tracking-wider ${adminFieldErrors.telefono ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                />
-                                <div className="flex items-center justify-between mt-1">
-                                    {adminFieldErrors.telefono
-                                        ? <p className="text-xs text-red-500">{adminFieldErrors.telefono}</p>
-                                        : <span />}
-                                    <span className={`text-xs tabular-nums ${adminForm.telefono.length === 10 ? 'text-green-500' : 'text-gray-400'}`}>
-                                        {adminForm.telefono.length}/10
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Email */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Email de acceso <span className="text-red-500">*</span></label>
-                                <input type="email" value={adminForm.email_login}
-                                    onChange={e => { setAdminForm(p => ({ ...p, email_login: e.target.value })); setAdminFieldErrors(p => ({ ...p, email_login: '' })); }}
-                                    placeholder="admin@ejemplo.com"
-                                    className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm outline-none focus:ring-1 ${adminFieldErrors.email_login ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                />
-                                {adminFieldErrors.email_login && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.email_login}</p>}
-                            </div>
-
-                            {/* Contraseña */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Contraseña <span className="text-red-500">*</span></label>
-                                <div className="relative">
-                                    <input
-                                        type={showAdminPassword ? 'text' : 'password'}
-                                        value={adminForm.password}
-                                        onChange={e => { setAdminForm(p => ({ ...p, password: e.target.value })); setAdminFieldErrors(p => ({ ...p, password: '' })); }}
-                                        className={`w-full rounded-lg border bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 pr-10 text-sm outline-none focus:ring-1 ${adminFieldErrors.password ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary/20'}`}
-                                    />
-                                    <button type="button" onClick={() => setShowAdminPassword(v => !v)}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                        tabIndex={-1}>
-                                        <span className="material-symbols-outlined text-lg">{showAdminPassword ? 'visibility_off' : 'visibility'}</span>
-                                    </button>
-                                </div>
-                                {adminFieldErrors.password && <p className="text-xs text-red-500 mt-1">{adminFieldErrors.password}</p>}
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700">
-                            <button onClick={closeAdminModal} disabled={adminLoading}
-                                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50">
-                                Cancelar
-                            </button>
-                            <button onClick={handleCreateAdmin} disabled={adminLoading}
-                                className="flex items-center gap-2 px-5 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors shadow-sm disabled:opacity-50">
-                                {adminLoading ? <Spinner /> : <span className="material-symbols-outlined text-base">person_add</span>}
-                                Crear Admin
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <Card>
-                <SectionHeader icon="how_to_vote" title="Nuevo Candidato" subtitle="Agrega un candidato/cliente al sistema" />
-                <div className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nombre <span className="text-red-500">*</span></label>
-                        <input type="text" placeholder="Ej. Juan Pérez" value={nombre} onChange={e => setNombre(e.target.value)}
-                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descripción</label>
-                        <input type="text" placeholder="Cargo, partido, referencia..." value={descripcion} onChange={e => setDescripcion(e.target.value)}
-                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
-                    </div>
-                    <button onClick={handleCreate} disabled={saving || !nombre.trim()}
-                        className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm shadow-blue-500/30">
-                        {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">add</span>}
-                        Crear candidato
-                    </button>
-                </div>
-            </Card>
-
-            <Card>
-                <SectionHeader icon="ballot" title="Candidatos registrados" />
-                {loading ? (
-                    <div className="p-10 flex justify-center"><Spinner /></div>
-                ) : candidatos.length === 0 ? (
-                    <div className="py-10 text-center text-gray-400 text-sm">No hay candidatos registrados</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase">
-                                <tr>
-                                    <th className="px-6 py-3 text-left">Nombre</th>
-                                    <th className="px-6 py-3 text-left">Descripción</th>
-                                    <th className="px-6 py-3 text-left">Creado</th>
-                                    <th className="px-6 py-3 text-center w-52">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {candidatos.map(c => (
-                                    <tr key={c.candidato_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full shrink-0 ${c.activo ? 'bg-green-500' : 'bg-gray-400'}`} />
-                                                {c.nombre}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3 text-gray-500 dark:text-gray-400 text-xs">{c.descripcion || '—'}</td>
-                                        <td className="px-6 py-3 text-gray-500 text-xs">{new Date(c.fecha_creacion).toLocaleDateString('es-DO')}</td>
-                                        <td className="px-6 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2 flex-wrap">
-                                                <button
-                                                    onClick={() => setModalAdmin({ open: true, candidato_id: c.candidato_id, candidato_nombre: c.nombre })}
-                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">person_add</span>
-                                                    Crear Admin
-                                                </button>
-                                                <button
-                                                    onClick={() => openConfirm(c.candidato_id, c.activo, c.nombre)}
-                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                                                        c.activo
-                                                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
-                                                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
-                                                    }`}
-                                                >
-                                                    <span className="material-symbols-outlined text-base">
-                                                        {c.activo ? 'block' : 'check_circle'}
-                                                    </span>
-                                                    {c.activo ? 'Inactivar' : 'Activar'}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </Card>
+          </div>
         </div>
+        <div className="overflow-x-auto -mx-px">
+          {loading ? (
+            <div className="p-10 flex justify-center"><Spinner /></div>
+          ) : (
+            <table className="min-w-[650px] w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 uppercase">
+                <tr>
+                  <th className="px-6 py-3 text-left">Líder</th>
+                  <th className="px-6 py-3 text-left">Sector</th>
+                  <th className="px-6 py-3 text-center">Meta</th>
+                  <th className="px-6 py-3 text-center">Registrados</th>
+                  <th className="px-6 py-3 w-48">Cumplimiento</th>
+                  <th className="px-6 py-3 text-center">Estado</th>
+                  <th className="px-6 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {filtered.map(l => (
+                  <tr key={l.lider_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                    <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">{l.nombre_completo}</td>
+                    <td className="px-6 py-3 text-gray-500 text-xs">{l.sector_nombre}</td>
+                    <td className="px-6 py-3 text-center">{l.meta_cantidad}</td>
+                    <td className="px-6 py-3 text-center font-bold text-gray-900 dark:text-white">{l.total_reclutados}</td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div className={`h-2 rounded-full ${getProgressColor(l.porcentaje_cumplimiento)}`} style={{ width: `${Math.min(100, l.porcentaje_cumplimiento)}%` }} />
+                        </div>
+                        <span className="text-xs font-bold w-10 text-right">{l.porcentaje_cumplimiento}%</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${l.estado_nombre?.toLowerCase() === 'activo' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        {l.estado_nombre}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => handleToggle(l.lider_id, l.estado_nombre)}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${l.estado_nombre?.toLowerCase() === 'activo' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+                        {l.estado_nombre?.toLowerCase() === 'activo' ? 'Inactivar' : 'Activar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && !loading && (
+                  <tr><td colSpan={7} className="py-8 text-center text-gray-400 text-sm">No se encontraron líderes</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── TabCandidatos ────────────────────────────────────────────────────────────
+const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+  const [candidatos, setCandidatos] = useState<{candidato_id: string, nombre: string, descripcion: string, activo: boolean}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [showAdminForm, setShowAdminForm] = useState<string|null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState<string|null>(null);
+  const [form, setForm] = useState({ nombre: '', descripcion: '' });
+  const [adminForm, setAdminForm] = useState({
+    nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: ''
+  });
+  const userStr = localStorage.getItem('user');
+  const currentUserRole = userStr ? JSON.parse(userStr).rol_nombre : '';
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.get('http://localhost:3001/api/candidatos');
+      setCandidatos(r.data.data);
+    } catch { toast('Error cargando candidatos', 'error'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  const handleSave = async () => {
+    if (!form.nombre.trim()) { toast('El nombre es obligatorio', 'error'); return; }
+    setSaving(true);
+    try {
+      if (editId) {
+        await axios.put(`http://localhost:3001/api/candidatos/${editId}`, form);
+        toast('Candidato actualizado ✓', 'success');
+        setEditId(null);
+      } else {
+        await axios.post('http://localhost:3001/api/candidatos', form);
+        toast('Candidato creado ✓', 'success');
+        setShowForm(false);
+      }
+      setForm({ nombre: '', descripcion: '' });
+      load();
+    } catch { toast('Error al guardar', 'error'); }
+    finally { setSaving(false); }
+  };
+  const handleToggle = async (id: string, activo: boolean) => {
+    try {
+      await axios.put(`http://localhost:3001/api/candidatos/${id}`, { activo: !activo });
+      toast(`Candidato ${!activo ? 'activado' : 'desactivado'} ✓`, 'success');
+      load();
+    } catch { toast('Error', 'error'); }
+  };
+  const handleCreateAdmin = async (candidatoId: string) => {
+    const { nombres, apellidos, telefono, email_login, password } = adminForm;
+    if (!nombres || !apellidos || !telefono || !email_login || !password) {
+      toast('Todos los campos del admin son obligatorios', 'error'); return;
+    }
+    setSaving(true);
+    try {
+      await axios.post(`http://localhost:3001/api/candidatos/${candidatoId}/admin`, adminForm);
+      toast('Admin del candidato creado ✓', 'success');
+      setShowAdminForm(null);
+      setAdminForm({ nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: '' });
+    } catch (e: any) {
+      toast(e.response?.data?.message || 'Error al crear admin', 'error');
+    } finally { setSaving(false); }
+  };
+  if (currentUserRole !== 'ADMIN') {
+    return (
+      <Card>
+        <div className="p-8 text-center text-gray-400">
+          <span className="material-symbols-outlined text-4xl mb-2 block">lock</span>
+          <p className="text-sm">Solo el Super Admin puede gestionar candidatos</p>
+        </div>
+      </Card>
     );
+  }
+  return (
+    <div className="space-y-6">
+      <Card>
+        <SectionHeader icon="how_to_vote" title="Gestión de Candidatos" subtitle="Administra los candidatos políticos del sistema" />
+        <div className="p-6">
+          {!showForm && !editId && (
+            <button onClick={() => setShowForm(true)}
+              className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm">
+              <span className="material-symbols-outlined text-lg">add</span>
+              Nuevo Candidato
+            </button>
+          )}
+          {(showForm || editId) && (
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-5 space-y-4 border border-gray-200 dark:border-gray-700">
+              <h4 className="font-semibold text-gray-900 dark:text-white">
+                {editId ? 'Editar Candidato' : 'Nuevo Candidato'}
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nombre *</label>
+                  <input type="text" placeholder="Ej: Juan Pérez para Alcalde"
+                    value={form.nombre} onChange={e => setForm(p => ({...p, nombre: e.target.value}))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Descripción</label>
+                  <input type="text" placeholder="Ej: Candidato a Alcalde de Santiago"
+                    value={form.descripcion} onChange={e => setForm(p => ({...p, descripcion: e.target.value}))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">save</span>}
+                  {editId ? 'Guardar Cambios' : 'Crear Candidato'}
+                </button>
+                <button onClick={() => { setShowForm(false); setEditId(null); setForm({ nombre: '', descripcion: '' }); }}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+      <Card>
+        <SectionHeader icon="ballot" title="Candidatos Registrados" subtitle={`${candidatos.filter(c => c.activo).length} activos de ${candidatos.length} total`} />
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {loading ? <div className="p-8 flex justify-center"><Spinner /></div> :
+            candidatos.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">No hay candidatos registrados</div> :
+            candidatos.map(c => (
+              <div key={c.candidato_id} className="p-5 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="font-semibold text-gray-900 dark:text-white">{c.nombre}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${c.activo ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                        {c.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+                    {c.descripcion && <p className="text-xs text-gray-500">{c.descripcion}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => { setEditId(c.candidato_id); setShowForm(false); setForm({ nombre: c.nombre, descripcion: c.descripcion || '' }); }}
+                      className="text-gray-400 hover:text-primary transition-colors" title="Editar">
+                      <span className="material-symbols-outlined text-xl">edit</span>
+                    </button>
+                    <button onClick={() => handleToggle(c.candidato_id, c.activo)}
+                      className={`transition-colors ${c.activo ? 'text-gray-400 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`}>
+                      <span className="material-symbols-outlined text-xl">{c.activo ? 'toggle_on' : 'toggle_off'}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowAdminForm(showAdminForm === c.candidato_id ? null : c.candidato_id)}
+                      className="flex items-center gap-1 text-xs font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors" title="Crear Admin">
+                      <span className="material-symbols-outlined text-base">manage_accounts</span>
+                      Crear Admin
+                    </button>
+                  </div>
+                </div>
+                {showAdminForm === c.candidato_id && (
+                  <div className="mt-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl p-4 border border-purple-200 dark:border-purple-800 space-y-3">
+                    <h5 className="text-sm font-bold text-purple-800 dark:text-purple-300 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base">admin_panel_settings</span>
+                      Crear Administrador para: {c.nombre}
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {[
+                        { key: 'nombres', label: 'Nombres *', placeholder: 'Juan' },
+                        { key: 'apellidos', label: 'Apellidos *', placeholder: 'Pérez' },
+                        { key: 'cedula', label: 'Cédula', placeholder: '000-0000000-0' },
+                        { key: 'telefono', label: 'Teléfono *', placeholder: '809-000-0000' },
+                        { key: 'email_login', label: 'Email de acceso *', placeholder: 'admin@candidato.com' },
+                        { key: 'password', label: 'Contraseña inicial *', placeholder: 'Mínimo 8 caracteres' },
+                      ].map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{f.label}</label>
+                          <input
+                            type={f.key === 'password' ? 'password' : 'text'}
+                            placeholder={f.placeholder}
+                            value={(adminForm as any)[f.key]}
+                            onChange={e => setAdminForm(p => ({...p, [f.key]: e.target.value}))}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 pt-1">
+                      <button onClick={() => handleCreateAdmin(c.candidato_id)} disabled={saving}
+                        className="flex items-center gap-2 bg-purple-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                        {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">person_add</span>}
+                        Crear Administrador
+                      </button>
+                      <button onClick={() => setShowAdminForm(null)}
+                        className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          }
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─── TabFuentes ───────────────────────────────────────────────────────────────
+const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) => {
+  const [fuentes, setFuentes] = useState<{fuente_id: string, nombre: string, activo: boolean}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newNombre, setNewNombre] = useState('');
+  const [editId, setEditId] = useState<string|null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const authHeader = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.get('http://localhost:3001/api/fuentes/todas', authHeader);
+      setFuentes(r.data.data);
+    } catch { toast('Error cargando fuentes', 'error'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!newNombre.trim()) return;
+    setSaving(true);
+    try {
+      await axios.post('http://localhost:3001/api/fuentes', { nombre: newNombre }, authHeader);
+      toast('Fuente agregada ✓', 'success');
+      setNewNombre('');
+      load();
+    } catch { toast('Error al agregar', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleEdit = async (id: string) => {
+    if (!editNombre.trim()) return;
+    try {
+      await axios.put(`http://localhost:3001/api/fuentes/${id}`, { nombre: editNombre }, authHeader);
+      toast('Actualizado ✓', 'success');
+      setEditId(null);
+      load();
+    } catch { toast('Error al actualizar', 'error'); }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`http://localhost:3001/api/fuentes/${confirmDeleteId}`, authHeader);
+      toast('Fuente eliminada ✓', 'success');
+      setFuentes(prev => prev.filter(f => f.fuente_id !== confirmDeleteId));
+    } catch (e: any) {
+      toast(e.response?.data?.message || 'Error al eliminar', 'error');
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const confirmingNombre = fuentes.find(f => f.fuente_id === confirmDeleteId)?.nombre || '';
+
+  return (
+    <div className="space-y-6">
+      <ConfirmModal
+        open={!!confirmDeleteId}
+        title="¿Eliminar fuente de captación?"
+        message={`"${confirmingNombre}" será eliminada permanentemente. Esta acción no se puede deshacer.`}
+        confirmLabel={deleting ? 'Eliminando...' : 'Eliminar'}
+        confirmColor="bg-red-600 hover:bg-red-700"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+      <Card>
+        <SectionHeader icon="add_circle" title="Agregar Fuente de Captación" subtitle="Registra un nuevo canal de captación" />
+        <div className="p-6 flex gap-3">
+          <input
+            type="text" placeholder="Ej: Puerta a Puerta, Redes Sociales..."
+            value={newNombre} onChange={e => setNewNombre(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
+          />
+          <button onClick={handleAdd} disabled={saving || !newNombre.trim()}
+            className="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm">
+            {saving ? <Spinner /> : <span className="material-symbols-outlined text-lg">add</span>}
+            Agregar
+          </button>
+        </div>
+      </Card>
+      <Card>
+        <SectionHeader icon="hub" title="Fuentes Registradas" subtitle={`${fuentes.length} total`} />
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {loading ? <div className="p-8 flex justify-center"><Spinner /></div> :
+            fuentes.length === 0 ? <div className="p-8 text-center text-gray-400 text-sm">No hay fuentes registradas</div> :
+            fuentes.map(f => (
+              <div key={f.fuente_id} className="flex items-center gap-4 px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                {editId === f.fuente_id ? (
+                  <>
+                    <input value={editNombre} onChange={e => setEditNombre(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleEdit(f.fuente_id)}
+                      className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-1.5 text-sm focus:border-primary outline-none"
+                      autoFocus />
+                    <button onClick={() => handleEdit(f.fuente_id)} className="text-green-600 hover:text-green-700 font-semibold text-sm">Guardar</button>
+                    <button onClick={() => setEditId(null)} className="text-gray-400 hover:text-gray-600 text-sm">Cancelar</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{f.nombre}</span>
+                    <button onClick={() => { setEditId(f.fuente_id); setEditNombre(f.nombre); }}
+                      className="text-gray-400 hover:text-primary transition-colors" title="Editar">
+                      <span className="material-symbols-outlined text-xl">edit</span>
+                    </button>
+                    <button onClick={() => setConfirmDeleteId(f.fuente_id)}
+                      className="text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
+                      <span className="material-symbols-outlined text-xl">delete</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            ))
+          }
+        </div>
+      </Card>
+    </div>
+  );
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-const SUPER_ADMIN_ID = '00000000-0000-0000-0000-000000000001';
-
 const Ajustes = () => {
+    // Rol debe calcularse ANTES del primer useState para poder usarlo como valor inicial
     const userObj = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAdmin = userObj?.rol_nombre?.toUpperCase() === 'ADMIN';
-    const isSuperAdmin = isAdmin && userObj?.candidato_id === SUPER_ADMIN_ID;
-    const visibleTabs: TabDef[] = [
-        ...BASE_TABS,
-        ...(isSuperAdmin ? [{ id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }] : []),
-    ];
+    const isSuperAdmin = userObj?.rol_nombre?.toUpperCase() === 'ADMIN' &&
+                         userObj?.candidato_id === '00000000-0000-0000-0000-000000000001';
 
-    const [activeTab, setActiveTab] = useState<Tab>('meta');
+    const [activeTab, setActiveTab] = useState<Tab>(isSuperAdmin ? 'candidatos' : 'meta');
     const [toasts, setToasts] = useState<Toast[]>([]);
     const toastIdRef = useRef(0);
+
+    const TABS: TabDef[] = [
+        ...(isSuperAdmin ? [{ id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }] : []),
+        { id: 'meta' as Tab, label: 'Meta Global', icon: 'flag' },
+        { id: 'usuarios' as Tab, label: 'Usuarios', icon: 'manage_accounts' },
+        { id: 'lideres' as Tab, label: 'Líderes', icon: 'people' },
+        { id: 'sectores' as Tab, label: 'Centros Votación', icon: 'location_on' },
+        { id: 'fuentes' as Tab, label: 'Fuentes', icon: 'source' },
+        { id: 'catalogos' as Tab, label: 'Catálogos', icon: 'category' },
+        { id: 'sistema' as Tab, label: 'Sistema', icon: 'settings' },
+    ];
 
     const toast = (message: string, type: ToastType = 'success') => {
         const id = ++toastIdRef.current;
@@ -1230,14 +1279,14 @@ const Ajustes = () => {
                         <span className="text-primary font-medium">Ajustes</span>
                     </div>
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Ajustes</h1>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Configuración global del sistema SIGED360</p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Configuración global del sistema Partido360</p>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl overflow-x-auto">
-                    {visibleTabs.map(tab => (
+                    {TABS.map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                            className={`flex-none px-4 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
                                 ${activeTab === tab.id
                                     ? 'bg-white dark:bg-card-dark text-primary shadow-sm'
                                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -1249,11 +1298,14 @@ const Ajustes = () => {
                 </div>
 
                 {/* Tab Content */}
+                {activeTab === 'candidatos' && <TabCandidatos toast={toast} />}
                 {activeTab === 'meta' && <TabMetaGlobal toast={toast} />}
                 {activeTab === 'usuarios' && <TabUsuarios toast={toast} />}
                 {activeTab === 'catalogos' && <TabCatalogos />}
-                {activeTab === 'sistema' && <TabSistema toast={toast} />}
-                {activeTab === 'candidatos' && isSuperAdmin && <TabCandidatos toast={toast} />}
+                {activeTab === 'sistema' && <TabSistema />}
+                {activeTab === 'sectores' && <TabSectores toast={toast} />}
+                {activeTab === 'lideres' && <TabLideres toast={toast} />}
+                {activeTab === 'fuentes' && <TabFuentes toast={toast} />}
 
                 <div className="h-10" />
             </div>

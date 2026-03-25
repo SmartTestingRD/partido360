@@ -1,6 +1,6 @@
 /**
  * Authentication Middleware — JWT-based
- * Populates req.user with: { usuario_id, persona_id, rol_nombre, candidato_id, lider_id }
+ * Populates req.user with: { usuario_id, persona_id, rol_nombre, lider_id }
  *
  * rol_nombre is NORMALIZED to uppercase: 'ADMIN' | 'COORDINADOR' | 'LIDER'
  * so all scope checks can compare against these constants.
@@ -18,15 +18,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'partido360_dev_secret';
 
 /** Normalize any DB role name to canonical uppercase constant */
 function normalizeRole(dbRoleName) {
-    const r = (dbRoleName || '').toLowerCase();
+    const r = (dbRoleName || '').toLowerCase()
+        .replace(/-/g, '')   // quita todos los guiones
+        .replace(/í/g, 'i'); // normaliza acento
     if (r === 'admin') return 'ADMIN';
     if (r === 'coordinador' || r === 'operador') return 'COORDINADOR';
-    if (r === 'lider') return 'LIDER';
-    return dbRoleName.toUpperCase(); // fallback
+    // 'sublider', 'sub_lider', 'lider' y cualquier variante → SUB_LIDER
+    if (r === 'sublider' || r === 'sub_lider' || r === 'lider') return 'SUB_LIDER';
+    return (dbRoleName || '').toUpperCase(); // fallback
 }
 
 /**
- * authenticate — verifica JWT, normaliza rol, y resuelve lider_id para LIDER.
+ * authenticate — verifica JWT, normaliza rol, y resuelve lider_id para SUB_LIDER y COORDINADOR.
  * Siempre pone req.user antes de llamar next().
  */
 async function authenticate(req, res, next) {
@@ -45,29 +48,26 @@ async function authenticate(req, res, next) {
 
     const rol_nombre = normalizeRole(payload.rol_nombre);
 
+    console.log(`[auth] JWT payload: usuario_id=${payload.usuario_id}, rol_nombre(raw)=${payload.rol_nombre}, rol_nombre(norm)=${rol_nombre}, candidato_id=${payload.candidato_id}`);
+
     req.user = {
-        usuario_id:   payload.usuario_id,
-        persona_id:   payload.persona_id,
-        rol_nombre,                          // siempre 'ADMIN' | 'COORDINADOR' | 'LIDER'
-        candidato_id: payload.candidato_id || null,
-        lider_id:     null
+        usuario_id: payload.usuario_id,
+        persona_id: payload.persona_id,
+        rol_nombre,    // siempre 'ADMIN' | 'COORDINADOR' | 'SUB_LIDER'
+        lider_id: null,
+        candidato_id: payload.candidato_id
     };
 
-    // Para LIDER: resolver lider_id desde DB — NUNCA viene del cliente
-    if (rol_nombre === 'LIDER') {
+    // Para SUB_LIDER, LIDER y COORDINADOR: resolver lider_id desde DB para gestionar su red
+    if (['SUB_LIDER', 'LIDER', 'COORDINADOR'].includes(rol_nombre)) {
         try {
             const liderRes = await pool.query(
                 'SELECT lider_id FROM lideres WHERE persona_id = $1 LIMIT 1',
                 [payload.persona_id]
             );
-            if (liderRes.rows.length === 0) {
-                return res.status(403).json({
-                    ok: false,
-                    code: 'USER_NOT_LIDER',
-                    message: 'Este usuario tiene rol LIDER pero no está registrado en la tabla lideres'
-                });
+            if (liderRes.rows.length > 0) {
+                req.user.lider_id = liderRes.rows[0].lider_id;
             }
-            req.user.lider_id = liderRes.rows[0].lider_id;
         } catch (err) {
             return next(err);
         }

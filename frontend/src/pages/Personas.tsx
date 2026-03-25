@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getPersonas, getSectores, getLideres, getEstadosPersona, getPersonaDetalle, getNivelesLider, getEstadosLider, crearLider, Persona, Sector, Lider, EstadoPersona, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import axios from 'axios';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import ConfirmModal from '../components/ConfirmModal';
+
+const API_URL = 'http://localhost:3001/api';
 
 const Personas = () => {
     const [personas, setPersonas] = useState<Persona[]>([]);
@@ -10,7 +14,6 @@ const Personas = () => {
     const [search, setSearch] = useState('');
     const [sector, setSector] = useState('');
     const [lider, setLider] = useState('');
-    const [estado, setEstado] = useState('');
 
     // Pagination state
     const [page, setPage] = useState(1);
@@ -21,7 +24,6 @@ const Personas = () => {
     // Catalogues
     const [sectores, setSectores] = useState<Sector[]>([]);
     const [lideres, setLideres] = useState<Lider[]>([]);
-    const [estadosPersona, setEstadosPersona] = useState<EstadoPersona[]>([]);
     const [nivelesLider, setNivelesLider] = useState<NivelLider[]>([]);
     const [estadosLider, setEstadosLider] = useState<EstadoLider[]>([]);
 
@@ -32,6 +34,7 @@ const Personas = () => {
 
     // Modal state
     const [isConversionModalOpen, setConversionModalOpen] = useState(false);
+    const [confirmConvertOpen, setConfirmConvertOpen] = useState(false);
     const [metaCantidad, setMetaCantidad] = useState<number>(10);
     const [nivelLiderId, setNivelLiderId] = useState<string>('');
     const [estadoLiderId, setEstadoLiderId] = useState<string>('');
@@ -55,16 +58,14 @@ const Personas = () => {
     useEffect(() => {
         const fetchCatalogos = async () => {
             try {
-                const [sectoresData, lideresData, estadosData, nivelesLiderData, estadosLiderData] = await Promise.all([
+                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData] = await Promise.all([
                     getSectores(),
                     getLideres(),
-                    getEstadosPersona(),
                     getNivelesLider(),
                     getEstadosLider()
                 ]);
                 setSectores(sectoresData);
                 setLideres(lideresData);
-                setEstadosPersona(estadosData);
                 setNivelesLider(nivelesLiderData);
                 setEstadosLider(estadosLiderData);
                 if (nivelesLiderData.length > 0) setNivelLiderId(nivelesLiderData[0].nivel_lider_id);
@@ -83,7 +84,7 @@ const Personas = () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await getPersonas({ q: search, sector_id: sector, lider_id: lider, estado_persona_id: estado, page, pageSize });
+            const data = await getPersonas({ q: search, sector_id: sector, lider_id: lider, page, pageSize });
             setPersonas(data.data);
             setTotalPages(data.totalPages);
             setTotalRecords(data.total);
@@ -97,13 +98,12 @@ const Personas = () => {
 
     useEffect(() => {
         fetchPersonasData();
-    }, [search, sector, lider, estado, page]);
+    }, [search, sector, lider, page]);
 
     const handleClearFilters = () => {
         setSearch('');
         setSector('');
         setLider('');
-        setEstado('');
         setPage(1);
     };
 
@@ -113,28 +113,23 @@ const Personas = () => {
         setConversionSuccess(null);
         setIsConverting(true);
         try {
-            await crearLider({
-                persona_id: personaDetalle.persona.persona_id,
+            await axios.post(`${API_URL}/personas/${personaDetalle.persona.persona_id}/convertir-lider`, {
                 meta_cantidad: metaCantidad,
-                nivel_lider_id: nivelLiderId,
-                estado_lider_id: estadoLiderId,
-                lider_padre_id: liderPadreId || null
+                nivel_lider_id: nivelLiderId || undefined,
+                lider_padre_id: liderPadreId || null,
             });
-            setConversionSuccess("¡Líder creado exitosamente!");
+            setConversionSuccess("¡Persona convertida en líder exitosamente!");
             const newData = await getPersonaDetalle(personaDetalle.persona.persona_id);
             setPersonaDetalle(newData);
             setTimeout(() => {
                 setConversionModalOpen(false);
                 setConversionSuccess(null);
-                fetchPersonasData(); // Refresh list to update if needed
+                fetchPersonasData();
             }, 2000);
         } catch (err: any) {
             console.error("Error al convertir en líder:", err);
-            if (err.response?.data?.code === 'ALREADY_LIDER') {
-                setConversionError("Esta persona ya está registrada como líder.");
-            } else {
-                setConversionError("Ocurrió un error al intentar convertir a líder.");
-            }
+            const msg = err.response?.data?.message;
+            setConversionError(msg || "Ocurrió un error al intentar convertir a líder.");
         } finally {
             setIsConverting(false);
         }
@@ -213,10 +208,6 @@ const Personas = () => {
                                 <select value={lider} onChange={(e) => { setLider(e.target.value); setPage(1); }} className="block w-full md:w-32 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-xs sm:text-sm h-10 transition-shadow">
                                     <option value="">Líder</option>
                                     {lideres.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
-                                </select>
-                                <select value={estado} onChange={(e) => { setEstado(e.target.value); setPage(1); }} className="block w-full md:w-32 col-span-2 sm:col-span-1 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-xs sm:text-sm h-10 transition-shadow">
-                                    <option value="">Estado</option>
-                                    {estadosPersona.map(e => <option key={e.estado_persona_id} value={e.estado_persona_id}>{e.nombre}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -300,7 +291,7 @@ const Personas = () => {
 
                             {/* Desktop View */}
                             <div className="hidden md:block overflow-x-auto custom-scrollbar flex-1">
-                                <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                                <table className="min-w-[800px] w-full text-left text-sm text-gray-600 dark:text-gray-300">
                                     <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400 sticky top-0 z-10 backdrop-blur-sm">
                                         <tr>
                                             <th className="px-6 py-4" scope="col">Nombre Completo</th>
@@ -657,9 +648,9 @@ const Personas = () => {
 
                             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100 dark:border-gray-700">
                                 <button
-                                    onClick={handleConvertToLider}
+                                    onClick={() => setConfirmConvertOpen(true)}
                                     disabled={isConverting || !nivelLiderId || !estadoLiderId}
-                                    className="flex w-full justify-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
+                                    className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
                                 >
                                     {isConverting ? (
                                         <>
@@ -685,6 +676,16 @@ const Personas = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                open={confirmConvertOpen}
+                title="¿Convertir en líder?"
+                message="Esta persona pasará a ser líder. Podrá gestionar sub-líderes y registrar personas bajo su cargo."
+                confirmLabel="Convertir"
+                confirmColor="bg-blue-600 hover:bg-blue-700"
+                onConfirm={() => { setConfirmConvertOpen(false); handleConvertToLider(); }}
+                onCancel={() => setConfirmConvertOpen(false)}
+            />
         </main>
     );
 };

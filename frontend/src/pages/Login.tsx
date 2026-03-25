@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const Login: React.FC = () => {
-    const [email, setEmail] = useState('');
+    const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -12,19 +12,16 @@ const Login: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            // Temporary: Simulate login call or call actual API
-            const API_URL = import.meta.env.VITE_API_URL || '/api';
-            const response = await fetch(`${API_URL}/auth/login`, {
+            const response = await fetch('http://localhost:3001/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ login: email, password })
+                body: JSON.stringify({ identifier, password })
             });
             const data = await response.json();
 
             if (data.ok) {
                 localStorage.setItem('token', data.data.token);
                 localStorage.setItem('user', JSON.stringify(data.data.user));
-                // simple redirect to hash router dashboard
                 window.location.hash = 'dashboard';
             } else {
                 setError(data.message || 'Error de credenciales');
@@ -42,11 +39,11 @@ const Login: React.FC = () => {
                 <div className="sm:mx-auto sm:w-full sm:max-w-md">
                     <div className="flex items-center justify-center gap-3 text-primary mb-8">
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                            <span className="material-symbols-outlined text-4xl">diversity_3</span>
+                            <span className="material-symbols-outlined text-4xl">how_to_vote</span>
                         </div>
                     </div>
                     <h2 className="text-center text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                        Bienvenido al CRM Político
+                        Bienvenido a Partido360
                     </h2>
                     <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
                         Ingresa tus credenciales para acceder a la plataforma de gestión.
@@ -62,22 +59,22 @@ const Login: React.FC = () => {
                     )}
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         <div>
-                            <label className="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200" htmlFor="email">
-                                Correo Electrónico
+                            <label className="block text-sm font-medium leading-6 text-slate-900 dark:text-slate-200" htmlFor="identifier">
+                                Cédula / Correo
                             </label>
                             <div className="relative mt-2 rounded-md shadow-sm">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                    <span className="material-symbols-outlined text-slate-400 text-[20px]">mail</span>
+                                    <span className="material-symbols-outlined text-slate-400 text-[20px]">person</span>
                                 </div>
                                 <input
-                                    id="email"
-                                    name="email"
-                                    type="email"
+                                    id="identifier"
+                                    name="identifier"
+                                    type="text"
                                     required
-                                    placeholder="ejemplo@organizacion.com"
+                                    placeholder="000-0000000-0 o correo"
                                     className="block w-full rounded-lg border-0 py-3 pl-10 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-primary dark:bg-slate-900/50 dark:ring-slate-700 dark:text-white sm:text-sm sm:leading-6"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    value={identifier}
+                                    onChange={(e) => setIdentifier(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -139,7 +136,7 @@ const Login: React.FC = () => {
                     </form>
 
                     <div className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                        <p>© 2024 CRM Político. Todos los derechos reservados.</p>
+                        <p>© 2024 Partido360. Todos los derechos reservados.</p>
                     </div>
                 </div>
             </div>

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { getDashboardData, DashboardData } from '../api/apiService';
 import CreateLiderModal from '../components/CreateLiderModal';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 // ─── Toast (Temporary Local Implementation for Dashboard) ───────────────────
 type ToastType = 'success' | 'error' | 'info';
@@ -24,7 +22,6 @@ const Dashboard: React.FC = () => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [crecimiento, setCrecimiento] = useState<{ fecha: string; total: number }[]>([]);
 
     // Modal Create Lider
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -44,17 +41,6 @@ const Dashboard: React.FC = () => {
             setError(null);
             const result = await getDashboardData();
             setData(result);
-            // Gráfico de crecimiento
-            const token = localStorage.getItem('token');
-            const crecRes = await axios.get('/api/dashboard/crecimiento', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setCrecimiento(
-                (crecRes.data.data || []).map((d: any) => ({
-                    fecha: new Date(d.fecha).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' }),
-                    total: parseInt(d.total),
-                }))
-            );
         } catch (err) {
             console.error('Error loading dashboard data:', err);
             setError('No se pudieron cargar las métricas. Por favor, intenta de nuevo.');
@@ -65,6 +51,13 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         loadData();
+    }, []);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadData();
+        }, 60000);
+        return () => clearInterval(interval);
     }, []);
 
     if (loading && !data) {
@@ -191,24 +184,6 @@ const Dashboard: React.FC = () => {
 
             </div>
 
-            {/* Gráfico de crecimiento */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <h3 className="text-base font-medium text-gray-700 dark:text-gray-300 mb-4">Crecimiento de personas — últimos 30 días</h3>
-                {crecimiento.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={crecimiento}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={false} name="Personas" />
-                        </LineChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <p className="text-sm text-gray-400 text-center py-8">Sin registros en los últimos 30 días</p>
-                )}
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                 {/* Left Column (Rankings) */}
                 <div className="lg:col-span-2 space-y-6 md:space-y-8">
@@ -243,7 +218,7 @@ const Dashboard: React.FC = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between mb-2">
-                                                <p className="text-sm md:text-base font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{leader.name}</p>
+                                                <p className="text-sm md:text-base font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{leader.name || 'Sin nombre'}</p>
                                                 <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 font-mono">{leader.count.toLocaleString()}</p>
                                             </div>
                                             <div className="w-full bg-slate-100 dark:bg-slate-700/50 rounded-full h-1.5 md:h-2 overflow-hidden flex items-center relative">
