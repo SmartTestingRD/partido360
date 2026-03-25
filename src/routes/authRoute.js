@@ -104,6 +104,9 @@ router.post('/login', loginLimiter, async (req, res, next) => {
         }
 
         // 3. Verificar password
+        if (!user.password_hash) {
+            return res.status(401).json({ ok: false, code: 'INVALID_CREDENTIALS', message: 'Credenciales inválidas' });
+        }
         const passwordOk = await bcrypt.compare(password, user.password_hash);
 
         if (!passwordOk) {

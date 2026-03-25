@@ -169,7 +169,7 @@ router.get('/dashboard', authenticate, async (req, res, next) => {
             let personaQueryBase = `FROM personas p WHERE p.candidato_id = $1`;
             let personaFilter = '';
             let liderFilter = ` WHERE l.candidato_id = $1`;
-            let asignacionFilter = ` WHERE a.candidato_id = $1`;
+            let asignacionFilter = ` WHERE l.candidato_id = $1`;
             let filterValues = [req.user.candidato_id];
 
             if (role === 'SUB_LIDER') {
@@ -321,6 +321,34 @@ router.get('/dashboard', authenticate, async (req, res, next) => {
     }
 });
 
+// GET /dashboard/crecimiento
+router.get('/dashboard/crecimiento', authenticate, async (req, res) => {
+    try {
+        const candidatoId = await getCandidatoId(req);
+        let query, params;
+        if (candidatoId) {
+            query = `SELECT DATE_TRUNC('day', fecha_registro) as fecha, COUNT(*) as total
+                     FROM personas WHERE candidato_id = $1
+                     AND fecha_registro >= NOW() - INTERVAL '30 days'
+                     GROUP BY DATE_TRUNC('day', fecha_registro)
+                     ORDER BY fecha ASC`;
+            params = [candidatoId];
+        } else {
+            query = `SELECT DATE_TRUNC('day', fecha_registro) as fecha, COUNT(*) as total
+                     FROM personas
+                     WHERE fecha_registro >= NOW() - INTERVAL '30 days'
+                     GROUP BY DATE_TRUNC('day', fecha_registro)
+                     ORDER BY fecha ASC`;
+            params = [];
+        }
+        const result = await pool.query(query, params);
+        res.json({ ok: true, data: result.rows });
+    } catch (err) {
+        console.error('[GET /dashboard/crecimiento]', err.message);
+        res.status(500).json({ ok: false, message: err.message });
+    }
+});
+
 // GET /lideres
 router.get('/lideres', authenticate, async (req, res, next) => {
     try {
@@ -452,11 +480,11 @@ router.post('/registro', authenticate, async (req, res, next) => {
 
         // Crear la asignación
         const asignacionQuery = `
-      INSERT INTO asignaciones (lider_id, persona_id, fuente_id, estado_asignacion_id, candidato_id)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO asignaciones (lider_id, persona_id, fuente_id, estado_asignacion_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-        const asignacionValues = [lider_id, nuevaPersona.persona_id, fuente_id, estadoAsignacionId, req.user.candidato_id];
+        const asignacionValues = [lider_id, nuevaPersona.persona_id, fuente_id, estadoAsignacionId];
         const asignacionRes = await client.query(asignacionQuery, asignacionValues);
         const nuevaAsignacion = asignacionRes.rows[0];
 
@@ -1677,6 +1705,95 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
     }
 });
 
+// POST /personas/:id/convertir-lider
+router.post('/personas/:id/convertir-lider', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { meta_cantidad, sector_id, nivel_lider_id, lider_padre_id } = req.body;
+        const candidatoId = await getCandidatoId(req);
+
+        const personaRes = await pool.query('SELECT * FROM personas WHERE persona_id = $1', [id]);
+        if (!personaRes.rows[0]) {
+            return res.status(404).json({ ok: false, message: 'Persona no encontrada' });
+        }
+        const persona = personaRes.rows[0];
+
+        const existeLider = await pool.query('SELECT lider_id FROM lideres WHERE persona_id = $1', [id]);
+        if (existeLider.rows[0]) {
+            return res.status(400).json({ ok: false, message: 'Esta persona ya es líder' });
+        }
+
+        const estadoRes = await pool.query(
+            "SELECT estado_lider_id FROM estado_lider WHERE LOWER(nombre) ILIKE '%activo%' LIMIT 1"
+        );
+        const estadoLiderId = estadoRes.rows[0]?.estado_lider_id;
+
+        let nivelId = nivel_lider_id;
+        if (!nivelId) {
+            const nivelRes = await pool.query('SELECT nivel_lider_id FROM nivel_lider ORDER BY nivel_lider_id LIMIT 1');
+            nivelId = nivelRes.rows[0]?.nivel_lider_id;
+        }
+
+        const liderRes = await pool.query(
+            `INSERT INTO lideres (persona_id, nombres, apellidos, telefono, sector_id, meta_cantidad, estado_lider_id, nivel_lider_id, lider_padre_id, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING *`,
+            [id, persona.nombres, persona.apellidos, persona.telefono,
+             sector_id || persona.sector_id, meta_cantidad || 10,
+             estadoLiderId, nivelId, lider_padre_id || null,
+             candidatoId || '00000000-0000-0000-0000-000000000001']
+        );
+
+        res.json({
+            ok: true,
+            data: liderRes.rows[0],
+            message: `${persona.nombres} ${persona.apellidos} ahora es líder`
+        });
+    } catch (err) {
+        console.error('[POST /personas/:id/convertir-lider]', err.message);
+        res.status(500).json({ ok: false, message: err.message });
+    }
+});
+
+// GET /usuarios/lista
+router.get('/usuarios/lista', authenticate, async (req, res) => {
+    try {
+        const isSuperAdmin = req.user?.candidato_id === '00000000-0000-0000-0000-000000000001';
+        let query, params;
+        if (isSuperAdmin) {
+            query = `SELECT u.usuario_id, p.nombres||' '||p.apellidos as nombre_completo,
+                     p.cedula, u.email_login, u.username, r.nombre as rol_nombre,
+                     c.nombre as candidato,
+                     CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END as activo
+                     FROM usuarios u
+                     JOIN personas p ON u.persona_id = p.persona_id
+                     JOIN roles r ON u.rol_id = r.rol_id
+                     LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
+                     LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
+                     ORDER BY c.nombre, r.nombre, p.apellidos`;
+            params = [];
+        } else {
+            query = `SELECT u.usuario_id, p.nombres||' '||p.apellidos as nombre_completo,
+                     p.cedula, u.email_login, u.username, r.nombre as rol_nombre,
+                     c.nombre as candidato,
+                     CASE WHEN eu.nombre ILIKE '%activo%' THEN true ELSE false END as activo
+                     FROM usuarios u
+                     JOIN personas p ON u.persona_id = p.persona_id
+                     JOIN roles r ON u.rol_id = r.rol_id
+                     LEFT JOIN candidatos c ON u.candidato_id = c.candidato_id
+                     LEFT JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
+                     WHERE u.candidato_id = $1
+                     ORDER BY r.nombre, p.apellidos`;
+            params = [req.user.candidato_id];
+        }
+        const result = await pool.query(query, params);
+        res.json({ ok: true, data: result.rows });
+    } catch (err) {
+        console.error('[GET /usuarios/lista]', err.message);
+        res.status(500).json({ ok: false, message: err.message });
+    }
+});
+
 // POST /api/usuarios — Crear acceso (usuario) para una persona
 router.post('/usuarios', async (req, res, next) => {
     const client = await pool.connect();
@@ -1698,7 +1815,7 @@ router.post('/usuarios', async (req, res, next) => {
         if (!rol_nombre) {
             return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'rol_nombre es obligatorio' });
         }
-        const esRolCedula = ['Lider', 'Sub-Lider'].includes(rol_nombre);
+        const esRolCedula = ['Lider', 'Sub-Lider', 'Sub-Líder', 'Coordinador'].includes(rol_nombre) || rol_nombre?.toUpperCase().includes('LIDER') || rol_nombre?.toUpperCase().includes('COORD');
         if (!email_login && !username && !esRolCedula) {
             return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'Debe proveer al menos email_login o username' });
         }
@@ -1753,10 +1870,8 @@ router.post('/usuarios', async (req, res, next) => {
             plainPassword = password_temporal;
         }
 
-        let password_hash = null;
-        if (plainPassword) {
-            password_hash = await bcrypt.hash(plainPassword, 12);
-        }
+        if (!plainPassword) plainPassword = 'Clave1234!';
+        const password_hash = await bcrypt.hash(plainPassword, 10);
 
         // Para Lider/Sub-Lider sin email_login ni username, usar cédula como login
         const emailLoginFinal = email_login || (esRolCedula ? personaCedula : null);

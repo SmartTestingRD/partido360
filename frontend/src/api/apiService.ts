@@ -2,22 +2,52 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:3001/api';
 
-// Add a request interceptor to attach the JWT token to every request
-axios.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+// ── Global loader ─────────────────────────────────────────────────────────────
+let loadingCount = 0;
+let loaderStyleInjected = false;
+
+const showLoader = () => {
+    loadingCount++;
+    document.body.style.cursor = 'wait';
+    if (!document.getElementById('global-loader')) {
+        if (!loaderStyleInjected) {
+            document.head.insertAdjacentHTML('beforeend',
+                '<style>@keyframes loading-bar{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}</style>'
+            );
+            loaderStyleInjected = true;
+        }
+        const loader = document.createElement('div');
+        loader.id = 'global-loader';
+        loader.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,#3b82f6,#60a5fa);z-index:9999;animation:loading-bar 1s ease-in-out infinite;';
+        document.body.appendChild(loader);
     }
+};
+
+const hideLoader = () => {
+    loadingCount = Math.max(0, loadingCount - 1);
+    if (loadingCount === 0) {
+        document.body.style.cursor = 'default';
+        document.getElementById('global-loader')?.remove();
+    }
+};
+
+// Request: attach token + show loader
+axios.interceptors.request.use((config) => {
+    showLoader();
+    const token = localStorage.getItem('token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
 }, (error) => {
+    hideLoader();
     return Promise.reject(error);
 });
 
-// Add a response interceptor to handle 401 Unauthorized globally
+// Response: hide loader, handle 401
 axios.interceptors.response.use(
-    (response) => response,
+    (response) => { hideLoader(); return response; },
     (error) => {
-        if (error.response && error.response.status === 401) {
+        hideLoader();
+        if (error.response?.status === 401) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.hash = 'login';

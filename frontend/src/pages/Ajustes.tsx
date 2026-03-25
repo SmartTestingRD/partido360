@@ -34,19 +34,6 @@ type Tab = 'meta' | 'usuarios' | 'catalogos' | 'sistema' | 'sectores' | 'lideres
 
 interface TabDef { id: Tab; label: string; icon: string; }
 
-/** Lee el rol del usuario desde localStorage de forma robusta — soporta todos los formatos posibles */
-const getRolFromStorage = (): string => {
-    try {
-        const raw = localStorage.getItem('user');
-        if (!raw) return '';
-        const parsed = JSON.parse(raw);
-        const rol = parsed?.rol_nombre || parsed?.data?.rol_nombre || parsed?.user?.rol_nombre || parsed?.rol || '';
-        console.log('[Ajustes] parsed user:', parsed, '| rol encontrado:', rol);
-        return rol;
-    } catch {
-        return '';
-    }
-};
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
@@ -1254,15 +1241,16 @@ const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const Ajustes = () => {
     // Rol debe calcularse ANTES del primer useState para poder usarlo como valor inicial
-    const rolActual = getRolFromStorage();
-    const isAdmin = rolActual.toUpperCase() === 'ADMIN';
+    const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+    const isSuperAdmin = userObj?.rol_nombre?.toUpperCase() === 'ADMIN' &&
+                         userObj?.candidato_id === '00000000-0000-0000-0000-000000000001';
 
-    const [activeTab, setActiveTab] = useState<Tab>(isAdmin ? 'candidatos' : 'meta');
+    const [activeTab, setActiveTab] = useState<Tab>(isSuperAdmin ? 'candidatos' : 'meta');
     const [toasts, setToasts] = useState<Toast[]>([]);
     const toastIdRef = useRef(0);
 
     const TABS: TabDef[] = [
-        ...(isAdmin ? [{ id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }] : []),
+        ...(isSuperAdmin ? [{ id: 'candidatos' as Tab, label: 'Candidatos', icon: 'how_to_vote' }] : []),
         { id: 'meta' as Tab, label: 'Meta Global', icon: 'flag' },
         { id: 'usuarios' as Tab, label: 'Usuarios', icon: 'manage_accounts' },
         { id: 'lideres' as Tab, label: 'Líderes', icon: 'people' },

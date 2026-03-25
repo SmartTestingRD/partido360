@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, crearLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import axios from 'axios';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import ConfirmModal from '../components/ConfirmModal';
+
+const API_URL = 'http://localhost:3001/api';
 
 const Personas = () => {
     const [personas, setPersonas] = useState<Persona[]>([]);
@@ -30,6 +34,7 @@ const Personas = () => {
 
     // Modal state
     const [isConversionModalOpen, setConversionModalOpen] = useState(false);
+    const [confirmConvertOpen, setConfirmConvertOpen] = useState(false);
     const [metaCantidad, setMetaCantidad] = useState<number>(10);
     const [nivelLiderId, setNivelLiderId] = useState<string>('');
     const [estadoLiderId, setEstadoLiderId] = useState<string>('');
@@ -108,28 +113,23 @@ const Personas = () => {
         setConversionSuccess(null);
         setIsConverting(true);
         try {
-            await crearLider({
-                persona_id: personaDetalle.persona.persona_id,
+            await axios.post(`${API_URL}/personas/${personaDetalle.persona.persona_id}/convertir-lider`, {
                 meta_cantidad: metaCantidad,
-                nivel_lider_id: nivelLiderId,
-                estado_lider_id: estadoLiderId,
-                lider_padre_id: liderPadreId || null
+                nivel_lider_id: nivelLiderId || undefined,
+                lider_padre_id: liderPadreId || null,
             });
-            setConversionSuccess("¡Líder creado exitosamente!");
+            setConversionSuccess("¡Persona convertida en líder exitosamente!");
             const newData = await getPersonaDetalle(personaDetalle.persona.persona_id);
             setPersonaDetalle(newData);
             setTimeout(() => {
                 setConversionModalOpen(false);
                 setConversionSuccess(null);
-                fetchPersonasData(); // Refresh list to update if needed
+                fetchPersonasData();
             }, 2000);
         } catch (err: any) {
             console.error("Error al convertir en líder:", err);
-            if (err.response?.data?.code === 'ALREADY_LIDER') {
-                setConversionError("Esta persona ya está registrada como líder.");
-            } else {
-                setConversionError("Ocurrió un error al intentar convertir a líder.");
-            }
+            const msg = err.response?.data?.message;
+            setConversionError(msg || "Ocurrió un error al intentar convertir a líder.");
         } finally {
             setIsConverting(false);
         }
@@ -648,9 +648,9 @@ const Personas = () => {
 
                             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100 dark:border-gray-700">
                                 <button
-                                    onClick={handleConvertToLider}
+                                    onClick={() => setConfirmConvertOpen(true)}
                                     disabled={isConverting || !nivelLiderId || !estadoLiderId}
-                                    className="flex w-full justify-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
+                                    className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
                                 >
                                     {isConverting ? (
                                         <>
@@ -676,6 +676,16 @@ const Personas = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                open={confirmConvertOpen}
+                title="¿Convertir en líder?"
+                message="Esta persona pasará a ser líder. Podrá gestionar sub-líderes y registrar personas bajo su cargo."
+                confirmLabel="Convertir"
+                confirmColor="bg-blue-600 hover:bg-blue-700"
+                onConfirm={() => { setConfirmConvertOpen(false); handleConvertToLider(); }}
+                onCancel={() => setConfirmConvertOpen(false)}
+            />
         </main>
     );
 };
