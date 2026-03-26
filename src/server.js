@@ -19,7 +19,8 @@ app.use('/api', apiRoutes);
 
 app.use(errorHandler);
 
-if (process.env.NODE_ENV !== 'production') {
+const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
+if (!isVercel) {
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
     });

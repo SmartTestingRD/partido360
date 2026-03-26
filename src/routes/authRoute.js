@@ -153,7 +153,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
                     usuario_id: user.usuario_id,
                     persona_id: user.persona_id,
                     nombre_completo: user.nombre_completo,
-                    rol_nombre,
+                    rol_nombre: user.rol_nombre_db, // valor real de BD: 'Admin', 'Coordinador', 'Sub-Líder'
                     lider_id,
                     candidato_id: user.candidato_id
                 }

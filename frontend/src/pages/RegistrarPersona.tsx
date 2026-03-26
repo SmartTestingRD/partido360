@@ -67,6 +67,7 @@ const RegistrarPersona = () => {
     const isLider = currentUser?.rol_nombre === 'LIDER';
 
     useEffect(() => {
+        if (!localStorage.getItem('token')) return;
         const fetchData = async () => {
             setLoading(true);
             try {

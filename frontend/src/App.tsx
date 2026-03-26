@@ -11,10 +11,12 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import LiderDashboard from './pages/LiderDashboard';
+import Militancia from './pages/Militancia';
 
 // Layout wrapper to share the sidebar across pages
 const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode, currentPath: string, navigate: (path: string) => void }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const navTo = (path: string) => {
     setSidebarOpen(false);
@@ -30,12 +32,8 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
   }
 
   const nombreCompleto = user?.nombre_completo || 'Usuario';
-  const rawRole = user?.rol_nombre || 'Invitado';
-  let roleDisplay = rawRole;
-  if (rawRole === 'ADMIN') roleDisplay = 'Administrador';
-  else if (rawRole === 'COORDINADOR') roleDisplay = 'Coordinador';
-  else if (rawRole === 'SUB_LIDER') roleDisplay = 'Sub-Líder';
-  else if (rawRole === 'SUB-LIDER' || rawRole === 'Sub-Lider') roleDisplay = 'Sub-Líder';
+
+  const roleDisplay = user?.rol_nombre || 'Sin rol';
 
   const [candidatoInfo, setCandidatoInfo] = useState<string>('');
   useEffect(() => {
@@ -43,7 +41,8 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
     const uStr = localStorage.getItem('user');
     if (!token || !uStr) return;
     const u = JSON.parse(uStr);
-    if (u.rol_nombre !== 'ADMIN') {
+    const rolNormLayout = (u.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
+    if (rolNormLayout !== 'ADMIN') {
       axios.get('http://localhost:3001/api/candidatos', {
         headers: { Authorization: `Bearer ${token}` }
       }).then(res => {
@@ -72,73 +71,116 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
       )}
 
       {/* Sidebar Component */}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col w-64 bg-card-light dark:bg-card-dark border-r border-border-light dark:border-border-dark flex-shrink-0 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="h-16 flex items-center justify-between px-6 border-b border-border-light dark:border-border-dark">
-          <div className="flex items-center gap-2 font-bold text-xl text-primary">
-            <span className="material-symbols-outlined text-3xl">how_to_vote</span>
-            <span>Partido360</span>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col w-64 bg-card-light dark:bg-card-dark border-r border-border-light dark:border-border-dark flex-shrink-0 transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Logo */}
+        <div className={`h-16 flex items-center border-b border-border-light dark:border-border-dark ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-6'}`}>
+          <div className={`flex items-center font-bold text-xl text-primary ${sidebarCollapsed ? 'justify-center' : 'gap-2'}`}>
+            <span className="material-symbols-outlined text-3xl flex-shrink-0">how_to_vote</span>
+            {!sidebarCollapsed && <span>Partido360</span>}
           </div>
           {/* Botón cerrar sidebar en mobile */}
-          <button
-            className="md:hidden p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
+          {!sidebarCollapsed && (
+            <button
+              className="md:hidden p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          )}
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          <button onClick={() => navTo('dashboard')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'dashboard' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <span className={`material-symbols-outlined transition-colors ${currentPath === 'dashboard' ? '' : 'text-gray-400 group-hover:text-primary'}`}>dashboard</span>
-            <span className={currentPath === 'dashboard' ? '' : 'font-medium'}>Dashboard</span>
+
+        {/* Nav */}
+        <nav className={`flex-1 overflow-y-auto py-4 space-y-1 ${sidebarCollapsed ? 'px-2' : 'px-3'}`}>
+          {/* Dashboard */}
+          <button onClick={() => navTo('dashboard')} title={sidebarCollapsed ? 'Dashboard' : undefined}
+            className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'dashboard' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'dashboard' ? '' : 'text-gray-400 group-hover:text-primary'}`}>dashboard</span>
+            {!sidebarCollapsed && <span className={currentPath === 'dashboard' ? '' : 'font-medium'}>Dashboard</span>}
           </button>
-          <button onClick={() => navTo('lideres')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'lideres' || currentPath.startsWith('lideres/') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <span className={`material-symbols-outlined transition-colors ${currentPath === 'lideres' || currentPath.startsWith('lideres/') ? '' : 'text-gray-400 group-hover:text-primary'}`}>supervisor_account</span>
-            <span className={currentPath === 'lideres' || currentPath.startsWith('lideres/') ? '' : 'font-medium'}>Líderes</span>
+          {/* Líderes */}
+          <button onClick={() => navTo('lideres')} title={sidebarCollapsed ? 'Líderes' : undefined}
+            className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'lideres' || currentPath.startsWith('lideres/') ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'lideres' || currentPath.startsWith('lideres/') ? '' : 'text-gray-400 group-hover:text-primary'}`}>supervisor_account</span>
+            {!sidebarCollapsed && <span className={currentPath === 'lideres' || currentPath.startsWith('lideres/') ? '' : 'font-medium'}>Líderes</span>}
           </button>
-          <button onClick={() => navTo('captacion')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'captacion' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <span className={`material-symbols-outlined transition-colors ${currentPath === 'captacion' ? '' : 'text-gray-400 group-hover:text-primary'}`}>person_add</span>
-            <span className={currentPath === 'captacion' ? '' : 'font-medium'}>Captación</span>
+          {/* Captación */}
+          <button onClick={() => navTo('captacion')} title={sidebarCollapsed ? 'Captación' : undefined}
+            className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'captacion' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'captacion' ? '' : 'text-gray-400 group-hover:text-primary'}`}>person_add</span>
+            {!sidebarCollapsed && <span className={currentPath === 'captacion' ? '' : 'font-medium'}>Captación</span>}
           </button>
-          <button onClick={() => navTo('personas')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'personas' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <span className={`material-symbols-outlined transition-colors ${currentPath === 'personas' ? '' : 'text-gray-400 group-hover:text-primary'}`}>groups</span>
-            <span className={currentPath === 'personas' ? '' : 'font-medium'}>Personas</span>
+          {/* Personas */}
+          <button onClick={() => navTo('personas')} title={sidebarCollapsed ? 'Personas' : undefined}
+            className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'personas' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'personas' ? '' : 'text-gray-400 group-hover:text-primary'}`}>groups</span>
+            {!sidebarCollapsed && <span className={currentPath === 'personas' ? '' : 'font-medium'}>Personas</span>}
           </button>
-          <button onClick={() => navTo('militancia')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'militancia' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-            <span className={`material-symbols-outlined transition-colors ${currentPath === 'militancia' ? '' : 'text-gray-400 group-hover:text-primary'}`}>diversity_3</span>
-            <span className={currentPath === 'militancia' ? '' : 'font-medium'}>Militancia</span>
+          {/* Militancia */}
+          <button onClick={() => navTo('militancia')} title={sidebarCollapsed ? 'Militancia' : undefined}
+            className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'militancia' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+            <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'militancia' ? '' : 'text-gray-400 group-hover:text-primary'}`}>diversity_3</span>
+            {!sidebarCollapsed && <span className={currentPath === 'militancia' ? '' : 'font-medium'}>Militancia</span>}
           </button>
 
-          <div className="pt-4 mt-4 border-t border-border-light dark:border-border-dark">
-            <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Configuración</p>
-            <button onClick={() => navTo('ajustes')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${currentPath === 'ajustes' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-              <span className={`material-symbols-outlined transition-colors ${currentPath === 'ajustes' ? '' : 'text-gray-400 group-hover:text-primary'}`}>settings</span>
-              <span className={currentPath === 'ajustes' ? '' : 'font-medium'}>Ajustes</span>
+          <div className={`pt-4 mt-4 border-t border-border-light dark:border-border-dark`}>
+            {!sidebarCollapsed && <p className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Configuración</p>}
+            {/* Ajustes */}
+            <button onClick={() => navTo('ajustes')} title={sidebarCollapsed ? 'Ajustes' : undefined}
+              className={`w-full flex items-center py-2.5 rounded-lg transition-colors group ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} ${currentPath === 'ajustes' ? 'bg-primary/10 text-primary font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+              <span className={`material-symbols-outlined transition-colors flex-shrink-0 ${currentPath === 'ajustes' ? '' : 'text-gray-400 group-hover:text-primary'}`}>settings</span>
+              {!sidebarCollapsed && <span className={currentPath === 'ajustes' ? '' : 'font-medium'}>Ajustes</span>}
             </button>
           </div>
         </nav>
-        <div className="p-4 border-t border-border-light dark:border-border-dark group">
-          <div className="flex items-center gap-3">
+
+        {/* Toggle collapse button (desktop only) */}
+        <div className="hidden md:block px-2 pb-1">
+          <button
+            onClick={() => setSidebarCollapsed(c => !c)}
+            className={`w-full flex items-center py-2.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all ${sidebarCollapsed ? 'justify-center px-0' : 'gap-2 px-3'}`}
+            title={sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+          >
+            <span className="material-symbols-outlined text-xl flex-shrink-0">
+              {sidebarCollapsed ? 'chevron_right' : 'chevron_left'}
+            </span>
+            {!sidebarCollapsed && <span className="text-sm">Colapsar</span>}
+          </button>
+        </div>
+
+        {/* User profile */}
+        <div className={`p-4 border-t border-border-light dark:border-border-dark group ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+          {sidebarCollapsed ? (
             <div
-              className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background-light dark:hover:ring-offset-background-dark transition-all"
+              className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-primary transition-all"
               onClick={() => navTo('ajustes')}
-              title="Ir a Perfil"
+              title={`${nombreCompleto} — ${roleDisplay}`}
             >
               {initials}
             </div>
-            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navTo('ajustes')}>
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors">{nombreCompleto}</p>
-              <p className="text-xs text-gray-500 truncate">{roleDisplay}</p>
-              {candidatoInfo && (
-                <p className="text-xs text-primary font-semibold truncate flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">how_to_vote</span>
-                  {candidatoInfo}
-                </p>
-              )}
+          ) : (
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background-light dark:hover:ring-offset-background-dark transition-all"
+                onClick={() => navTo('ajustes')}
+                title="Ir a Perfil"
+              >
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navTo('ajustes')}>
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-primary transition-colors">{nombreCompleto}</p>
+                <p className="text-xs text-gray-500 truncate">{roleDisplay}</p>
+                {candidatoInfo && (
+                  <p className="text-xs text-primary font-semibold truncate flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">how_to_vote</span>
+                    {candidatoInfo}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); navigate('login'); }} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                <span className="material-symbols-outlined">logout</span>
+              </button>
             </div>
-            <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); navigate('login'); }} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
-              <span className="material-symbols-outlined">logout</span>
-            </button>
-          </div>
+          )}
         </div>
       </aside>
 
@@ -178,7 +220,7 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
 
 function App() {
   // Simple Hash Router Simulation
-  const [currentPath, setCurrentPath] = useState('lideres');
+  const [currentPath, setCurrentPath] = useState('');
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -198,10 +240,11 @@ function App() {
       const getDefaultPath = () => {
         try {
           const u = JSON.parse(localStorage.getItem('user') || '{}');
-          const rol = (u.rol_nombre || '').toUpperCase().replace(/[-_\s]/g, '');
-          if (rol === 'SUBLIDER' || rol === 'LIDER') return 'dashboard';
+          const rol = (u.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
+          if (rol === 'ADMIN' || rol === 'COORDINADOR') return 'dashboard';
+          if (rol.includes('LIDER')) return 'dashboard';
         } catch {}
-        return 'personas';
+        return 'dashboard';
       };
 
       // If logged in and trying to go to login, redirect to role default
@@ -235,6 +278,9 @@ function App() {
     setCurrentPath(path);
   };
 
+  // Guard: wait for auth check before rendering anything
+  if (currentPath === '') return null;
+
   if (currentPath === 'login') {
     return <Login />;
   }
@@ -256,15 +302,15 @@ function App() {
     }
 
     const userStr = localStorage.getItem('user');
-    let user = null;
-    if (userStr) {
-      try { user = JSON.parse(userStr); } catch (e) { }
-    }
-    const isLider = user?.rol_nombre === 'SUB_LIDER';
+    const userParsed = JSON.parse(userStr || '{}');
+    const rol = (userParsed.rol_nombre || '').toString().trim();
+
+    const mostrarLiderDashboard = rol === 'Sub-Líder' || rol === 'Sub-Lider' || rol === 'SUB_LIDER' || rol === 'SUBLIDER';
+    const mostrarDashboardAdmin = !mostrarLiderDashboard;
 
     switch (currentPath) {
       case 'dashboard':
-        return isLider ? <LiderDashboard /> : <Dashboard />;
+        return mostrarDashboardAdmin ? <Dashboard /> : <LiderDashboard />;
       case 'captacion':
         return <RegistrarPersona />;
       case 'lideres':
@@ -272,7 +318,7 @@ function App() {
       case 'personas':
         return <Personas />;
       case 'militancia':
-        return <div className="p-8 text-center"><p className="text-xl text-gray-500">Militancia General (En Desarrollo)</p></div>;
+        return <Militancia />;
       case 'ajustes':
         return <Ajustes />;
       default:
