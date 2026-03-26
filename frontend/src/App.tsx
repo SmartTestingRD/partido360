@@ -33,14 +33,7 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
 
   const nombreCompleto = user?.nombre_completo || 'Usuario';
 
-  const getRolDisplay = (rolNombre: string): string => {
-    const r = (rolNombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
-    if (r === 'ADMIN') return 'Administrador';
-    if (r === 'COORDINADOR') return 'Coordinador';
-    if (r.includes('LIDER')) return 'Sub-Líder';
-    return rolNombre || 'Invitado';
-  };
-  const roleDisplay = getRolDisplay(user?.rol_nombre || '');
+  const roleDisplay = user?.rol_nombre || 'Sin rol';
 
   const [candidatoInfo, setCandidatoInfo] = useState<string>('');
   useEffect(() => {
@@ -229,21 +222,6 @@ function App() {
   // Simple Hash Router Simulation
   const [currentPath, setCurrentPath] = useState('');
 
-  // === DEBUG ROL === (quitar después de verificar)
-  useEffect(() => {
-    const u = localStorage.getItem('user');
-    if (u) {
-      const parsed = JSON.parse(u);
-      const normalized = (parsed?.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
-      console.log('=== DEBUG ROL ===');
-      console.log('rol_nombre en localStorage:', parsed?.rol_nombre);
-      console.log('rol_nombre normalizado:', normalized);
-      console.log('includes LIDER:', normalized.includes('LIDER'));
-      console.log('=== COORDINADOR:', normalized === 'COORDINADOR');
-      console.log('=== ADMIN:', normalized === 'ADMIN');
-    }
-  }, []);
-
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -263,9 +241,10 @@ function App() {
         try {
           const u = JSON.parse(localStorage.getItem('user') || '{}');
           const rol = (u.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
-          if (rol.includes('LIDER') || rol === 'COORDINADOR') return 'dashboard';
+          if (rol === 'ADMIN' || rol === 'COORDINADOR') return 'dashboard';
+          if (rol.includes('LIDER')) return 'dashboard';
         } catch {}
-        return 'personas';
+        return 'dashboard';
       };
 
       // If logged in and trying to go to login, redirect to role default
@@ -323,17 +302,15 @@ function App() {
     }
 
     const userStr = localStorage.getItem('user');
-    let user = null;
-    if (userStr) {
-      try { user = JSON.parse(userStr); } catch (e) { }
-    }
-    const rolNorm = (user?.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
-    const isAdmin = rolNorm === 'ADMIN';
-    const isLiderRole = rolNorm.includes('LIDER') || rolNorm === 'COORDINADOR';
+    const userParsed = JSON.parse(userStr || '{}');
+    const rol = (userParsed.rol_nombre || '').toString().trim();
+
+    const mostrarLiderDashboard = rol === 'Sub-Líder' || rol === 'Sub-Lider' || rol === 'SUB_LIDER' || rol === 'SUBLIDER';
+    const mostrarDashboardAdmin = !mostrarLiderDashboard;
 
     switch (currentPath) {
       case 'dashboard':
-        return isLiderRole && !isAdmin ? <LiderDashboard /> : <Dashboard />;
+        return mostrarDashboardAdmin ? <Dashboard /> : <LiderDashboard />;
       case 'captacion':
         return <RegistrarPersona />;
       case 'lideres':
