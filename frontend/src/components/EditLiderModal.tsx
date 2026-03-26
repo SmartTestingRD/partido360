@@ -31,6 +31,13 @@ interface EditLiderModalProps {
     addToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
+function formatTelefonoEdit(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+  return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6,10)}`;
+}
+
 const EditLiderModal = ({ isOpen, liderId, initialValues, onClose, onSuccess, addToast }: EditLiderModalProps) => {
     const [form, setForm] = useState<EditLiderFormValues>(initialValues);
     const [isSaving, setIsSaving] = useState(false);
@@ -68,22 +75,53 @@ const EditLiderModal = ({ isOpen, liderId, initialValues, onClose, onSuccess, ad
         fetchCatalogs();
     }, [isOpen, liderId]);
 
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        if (name === 'nombres' || name === 'apellidos') {
+            const cleanValue = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]/g, '');
+            setForm(prev => ({ ...prev, [name]: cleanValue }));
+        } else {
+            setForm(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
     const handleSave = async () => {
+        if (!form.nombres.trim()) {
+            addToast('El nombre es obligatorio', 'error');
+            return;
+        }
+        if (/\d/.test(form.nombres)) {
+            addToast('El nombre no puede contener números', 'error');
+            return;
+        }
+        if (!form.apellidos.trim()) {
+            addToast('Los apellidos son obligatorios', 'error');
+            return;
+        }
+        if (/\d/.test(form.apellidos)) {
+            addToast('Los apellidos no pueden contener números', 'error');
+            return;
+        }
+        if (!form.telefono.trim()) {
+            addToast('El teléfono es obligatorio', 'error');
+            return;
+        }
+        if (form.telefono.replace(/\D/g,'').length < 10) {
+            addToast('El teléfono debe tener 10 dígitos', 'error');
+            return;
+        }
         if (form.meta_cantidad < 1) {
             addToast('La meta debe ser al menos 1', 'error');
             return;
         }
-        if (!form.nombres.trim() || !form.apellidos.trim() || !form.telefono.trim()) {
-            addToast('Nombre, apellidos y teléfono son obligatorios', 'error');
-            return;
-        }
+
         setIsSaving(true);
         try {
             await updateLider(liderId, {
                 meta_cantidad: form.meta_cantidad,
                 estado_lider_id: form.estado_lider_id,
                 nivel_lider_id: form.nivel_lider_id,
-                lider_padre_id: form.lider_padre_id || null,
+                // lider_padre_id es de solo lectura — no se envía al backend
                 nombres: form.nombres,
                 apellidos: form.apellidos,
                 telefono: form.telefono,
@@ -126,24 +164,45 @@ const EditLiderModal = ({ isOpen, liderId, initialValues, onClose, onSuccess, ad
                     {/* Nombres / Apellidos */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Nombres</label>
-                            <input type="text" value={form.nombres} onChange={e => setForm(p => ({ ...p, nombres: e.target.value }))} className={inputCls} placeholder="Ej: Juan" />
+                            <label className={labelCls}>Nombres *</label>
+                            <input type="text" 
+                                name="nombres"
+                                value={form.nombres} 
+                                onChange={handleInputChange} 
+                                className={inputCls} 
+                                placeholder="Ej: Juan" />
                         </div>
                         <div>
-                            <label className={labelCls}>Apellidos</label>
-                            <input type="text" value={form.apellidos} onChange={e => setForm(p => ({ ...p, apellidos: e.target.value }))} className={inputCls} placeholder="Ej: Pérez" />
+                            <label className={labelCls}>Apellidos *</label>
+                            <input type="text" 
+                                name="apellidos"
+                                value={form.apellidos} 
+                                onChange={handleInputChange} 
+                                className={inputCls} 
+                                placeholder="Ej: Pérez" />
                         </div>
                     </div>
 
                     {/* Teléfono / Sector */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Teléfono</label>
-                            <input type="text" value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))} className={inputCls} placeholder="Ej: 8091234567" />
+                            <label className={labelCls}>Teléfono *</label>
+                            <input
+                                type="text"
+                                className={inputCls}
+                                placeholder="809-000-0000"
+                                value={form.telefono}
+                                onChange={e => setForm(p => ({ ...p, telefono: formatTelefonoEdit(e.target.value) }))}
+                                maxLength={12}
+                            />
                         </div>
                         <div>
-                            <label className={labelCls}>Sector</label>
-                            <select value={form.sector_id} onChange={e => setForm(p => ({ ...p, sector_id: e.target.value }))} className={selectCls}>
+                            <label className={labelCls}>Sector *</label>
+                            <select 
+                                name="sector_id"
+                                value={form.sector_id} 
+                                onChange={handleInputChange} 
+                                className={selectCls}>
                                 <option value="">Seleccionar</option>
                                 {sectores.map(s => <option key={s.sector_id} value={s.sector_id}>{s.nombre}</option>)}
                             </select>
@@ -155,15 +214,24 @@ const EditLiderModal = ({ isOpen, liderId, initialValues, onClose, onSuccess, ad
                     {/* Meta / Estado */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Meta</label>
+                            <label className={labelCls}>Meta *</label>
                             <div className="relative">
                                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">flag</span>
-                                <input type="number" min="1" value={form.meta_cantidad} onChange={e => setForm(p => ({ ...p, meta_cantidad: parseInt(e.target.value) || 0 }))} className={`${inputCls} pl-10`} />
+                                <input type="number" 
+                                    name="meta_cantidad"
+                                    min="1" 
+                                    value={form.meta_cantidad} 
+                                    onChange={e => setForm(p => ({ ...p, meta_cantidad: parseInt(e.target.value) || 0 }))} 
+                                    className={`${inputCls} pl-10`} />
                             </div>
                         </div>
                         <div>
-                            <label className={labelCls}>Estado</label>
-                            <select value={form.estado_lider_id} onChange={e => setForm(p => ({ ...p, estado_lider_id: e.target.value }))} className={selectCls}>
+                            <label className={labelCls}>Estado *</label>
+                            <select 
+                                name="estado_lider_id"
+                                value={form.estado_lider_id} 
+                                onChange={handleInputChange} 
+                                className={selectCls}>
                                 {estadosLider.map(e => <option key={e.estado_lider_id} value={e.estado_lider_id}>{e.nombre}</option>)}
                             </select>
                         </div>
@@ -172,14 +240,22 @@ const EditLiderModal = ({ isOpen, liderId, initialValues, onClose, onSuccess, ad
                     {/* Nivel / Superior */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Nivel</label>
-                            <select value={form.nivel_lider_id} onChange={e => setForm(p => ({ ...p, nivel_lider_id: e.target.value }))} className={selectCls}>
+                            <label className={labelCls}>Nivel *</label>
+                            <select 
+                                name="nivel_lider_id"
+                                value={form.nivel_lider_id} 
+                                onChange={handleInputChange} 
+                                className={selectCls}>
                                 {nivelesLider.map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className={labelCls}>Superior</label>
-                            <select value={form.lider_padre_id} onChange={e => setForm(p => ({ ...p, lider_padre_id: e.target.value }))} className={selectCls}>
+                            <select 
+                                name="lider_padre_id"
+                                value={form.lider_padre_id} 
+                                onChange={handleInputChange} 
+                                className={selectCls}>
                                 <option value="">Ninguno (Cabeza)</option>
                                 {allLideres.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
                             </select>

@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { getPersonaDetalle, PersonaDetalle as IPersonaDetalle } from '../api/apiService';
+
+const API = 'http://localhost:3001/api';
+
+const Spinner = () => (
+    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+);
 
 interface PersonaDetalleProps {
     id: string;
@@ -11,6 +21,13 @@ const PersonaDetalle = ({ id, onBack }: PersonaDetalleProps) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isConversionModalOpen, setIsConversionModalOpen] = useState(false);
+    const [convertForm, setConvertForm] = useState({ meta_cantidad: 10, sector_id: '', nivel_lider_id: '', lider_padre_id: '' });
+    const [sectores, setSectores] = useState<any[]>([]);
+    const [niveles, setNiveles] = useState<any[]>([]);
+    const [lideresDisp, setLideresDisp] = useState<any[]>([]);
+    const [convertLoading, setConvertLoading] = useState(false);
+    const [convertError, setConvertError] = useState('');
+    const [convertSuccess, setConvertSuccess] = useState('');
 
     useEffect(() => {
         const fetchDetalle = async () => {
@@ -28,6 +45,39 @@ const PersonaDetalle = ({ id, onBack }: PersonaDetalleProps) => {
         };
         fetchDetalle();
     }, [id]);
+
+    useEffect(() => {
+        if (!isConversionModalOpen) return;
+        Promise.all([
+            axios.get(`${API}/sectores`),
+            axios.get(`${API}/nivel-lider`),
+            axios.get(`${API}/lideres-resumen`),
+        ]).then(([s, n, l]) => {
+            setSectores(s.data.data || []);
+            setNiveles(n.data.data || []);
+            setLideresDisp(l.data.data || []);
+        }).catch(console.error);
+    }, [isConversionModalOpen]);
+
+    const handleConvertirLider = async () => {
+        if (!convertForm.sector_id) { setConvertError('Selecciona un sector'); return; }
+        setConvertLoading(true); setConvertError('');
+        try {
+            const res = await axios.post(`${API}/personas/${data?.persona.persona_id}/convertir-lider`, convertForm);
+            if (res.data.ok) {
+                setConvertSuccess(res.data.message || 'Persona convertida en líder');
+                setTimeout(() => {
+                    setIsConversionModalOpen(false);
+                    setConvertSuccess('');
+                    setConvertForm({ meta_cantidad: 10, sector_id: '', nivel_lider_id: '', lider_padre_id: '' });
+                    // Recargar datos
+                    getPersonaDetalle(id).then(setData).catch(console.error);
+                }, 1800);
+            }
+        } catch (err: any) {
+            setConvertError(err.response?.data?.message || 'Error al convertir');
+        } finally { setConvertLoading(false); }
+    };
 
     const getInitials = (nombre?: string) => {
         if (!nombre) return 'NA';
@@ -244,15 +294,85 @@ const PersonaDetalle = ({ id, onBack }: PersonaDetalleProps) => {
                 </div>
             )}
 
-            {/* Conversion Modal Placeholder */}
+            {/* Conversion Modal */}
             {isConversionModalOpen && (
                 <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog">
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsConversionModalOpen(false)}></div>
-                    <div className="flex min-h-full items-end justify-center sm:items-center p-4 text-center">
-                        <div className="relative transform overflow-hidden rounded-t-2xl sm:rounded-xl bg-white dark:bg-[#15202e] text-left shadow-2xl transition-all w-full sm:max-w-lg border border-slate-200 dark:border-slate-700 p-6">
-                            <h3 className="text-lg font-bold">Modal de Conversión</h3>
-                            <p className="my-4 text-sm text-slate-500">Este modal fue preparado de la plantilla y pronto será funcional.</p>
-                            <button onClick={() => setIsConversionModalOpen(false)} className="w-full bg-slate-100 text-slate-700 font-bold py-2 rounded-lg">Cerrar</button>
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !convertLoading && setIsConversionModalOpen(false)} />
+                    <div className="flex min-h-full items-end justify-center sm:items-center p-4">
+                        <div className="relative bg-white dark:bg-[#15202e] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg border border-slate-200 dark:border-slate-700">
+                            {/* Header */}
+                            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-primary text-2xl">social_leaderboard</span>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Convertir en Líder</h3>
+                                        <p className="text-xs text-slate-400">{data?.persona.nombres} {data?.persona.apellidos}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setIsConversionModalOpen(false)} disabled={convertLoading}
+                                    className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+
+                            <div className="px-6 py-5 space-y-4">
+                                {convertError && (
+                                    <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-lg border border-red-200 dark:border-red-800">
+                                        {convertError}
+                                    </div>
+                                )}
+                                {convertSuccess && (
+                                    <div className="text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 px-4 py-3 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-base">check_circle</span>{convertSuccess}
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Sector <span className="text-red-500">*</span></label>
+                                    <select value={convertForm.sector_id} onChange={e => setConvertForm(f => ({ ...f, sector_id: e.target.value }))}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-primary outline-none">
+                                        <option value="">Seleccionar sector...</option>
+                                        {sectores.map(s => <option key={s.sector_id} value={s.sector_id}>{s.nombre}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Meta de personas</label>
+                                    <input type="number" min="1" value={convertForm.meta_cantidad}
+                                        onChange={e => setConvertForm(f => ({ ...f, meta_cantidad: parseInt(e.target.value) || 10 }))}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-primary outline-none" />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Nivel de Líder</label>
+                                    <select value={convertForm.nivel_lider_id} onChange={e => setConvertForm(f => ({ ...f, nivel_lider_id: e.target.value }))}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-primary outline-none">
+                                        <option value="">Seleccionar nivel...</option>
+                                        {niveles.filter(n => n.nombre?.toLowerCase() !== 'cabeza').map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Líder Superior (opcional)</label>
+                                    <select value={convertForm.lider_padre_id} onChange={e => setConvertForm(f => ({ ...f, lider_padre_id: e.target.value }))}
+                                        className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:border-primary outline-none">
+                                        <option value="">Sin líder superior</option>
+                                        {lideresDisp.map(l => <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                                <button onClick={() => setIsConversionModalOpen(false)} disabled={convertLoading}
+                                    className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                    Cancelar
+                                </button>
+                                <button onClick={handleConvertirLider} disabled={convertLoading || !convertForm.sector_id}
+                                    className="flex-1 py-2.5 rounded-lg bg-primary hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                                    {convertLoading ? <Spinner /> : <span className="material-symbols-outlined text-base">stars</span>}
+                                    {convertLoading ? 'Convirtiendo...' : 'Convertir en Líder'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

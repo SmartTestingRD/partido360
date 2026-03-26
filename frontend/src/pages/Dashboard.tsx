@@ -36,6 +36,7 @@ const Dashboard: React.FC = () => {
 
 
     const loadData = async () => {
+        if (!localStorage.getItem('token')) return;
         try {
             setLoading(true);
             setError(null);
@@ -51,6 +52,13 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         loadData();
+    }, []);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadData();
+        }, 60000);
+        return () => clearInterval(interval);
     }, []);
 
     if (loading && !data) {
@@ -211,7 +219,7 @@ const Dashboard: React.FC = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between mb-2">
-                                                <p className="text-sm md:text-base font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{leader.name}</p>
+                                                <p className="text-sm md:text-base font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{leader.name || 'Sin nombre'}</p>
                                                 <p className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 font-mono">{leader.count.toLocaleString()}</p>
                                             </div>
                                             <div className="w-full bg-slate-100 dark:bg-slate-700/50 rounded-full h-1.5 md:h-2 overflow-hidden flex items-center relative">

@@ -11,11 +11,13 @@ const { sendPasswordResetEmail, sendPasswordChangedEmail } = require('../service
 // --- Rate Limiters ---
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 10, // Límite de 10 intentos de login por IP
+    max: 500,
     message: { ok: false, code: 'TOO_MANY_REQUESTS', message: 'Demasiados intentos de inicio de sesión desde esta IP. Intenta más tarde.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV !== 'production', // Solo aplica en producción
 });
+
 
 const forgotPasswordLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
@@ -30,67 +32,91 @@ const forgotPasswordLimiter = rateLimit({
  */
 router.post('/login', loginLimiter, async (req, res, next) => {
     try {
-        const { login, password } = req.body;
+        const { identifier, password } = req.body;
 
-        if (!login || !password) {
+        const loginValue = identifier || req.body.login; // Soporte para ambos nombres de campo
+
+        if (!loginValue || !password) {
             return res.status(400).json({
                 ok: false, code: 'VALIDATION_ERROR',
-                message: 'login y password son requeridos'
+                message: 'identificador (cédula/email) y password son requeridos'
             });
         }
 
-        // Buscar el usuario
+        // Normalizar: quitar guiones y espacios para comparación de cédula
+        // (permite login con "0010000013", "001-0000001-3", "001 0000001 3", etc.)
+        const loginNormalizado = loginValue.replace(/[-\s]/g, '');
+
+        // Buscar el usuario por email, username, cédula exacta o cédula normalizada
         const result = await pool.query(
             `SELECT
-u.usuario_id, u.persona_id, u.password_hash,
-    u.failed_login_attempts, u.locked_until,
-    p.nombres || ' ' || p.apellidos AS nombre_completo,
-        r.nombre AS rol_nombre_db,
-            eu.nombre AS estado_usuario_nombre
+                u.usuario_id, u.persona_id, u.password_hash, u.email_login, u.username,
+                u.failed_login_attempts, u.locked_until,
+                p.nombres || ' ' || p.apellidos AS nombre_completo,
+                p.cedula,
+                r.nombre AS rol_nombre_db,
+                eu.nombre AS estado_usuario_nombre,
+                u.candidato_id
              FROM usuarios u
              JOIN personas p       ON u.persona_id = p.persona_id
              JOIN roles r          ON u.rol_id = r.rol_id
              JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
-             WHERE u.email_login = $1 OR u.username = $1
+             WHERE u.email_login = $1
+                OR u.username = $1
+                OR u.username = $2
+                OR p.cedula = $1
+                OR REPLACE(REPLACE(p.cedula, '-', ''), ' ', '') = $2
              LIMIT 1`,
-            [login]
+            [loginValue, loginNormalizado]
         );
 
         if (result.rows.length === 0) {
-            // Emular tiempo de bcrypt para mitigar timing attacks
             await bcrypt.compare(password, '$2a$10$somesaltxxxxxxxxxxxxxxxxxxxxxx');
             return res.status(401).json({ ok: false, code: 'INVALID_CREDENTIALS', message: 'Credenciales inválidas' });
         }
 
         const user = result.rows[0];
+        const rol_nombre = normalizeRole(user.rol_nombre_db);
+
+        // --- VALIDACIÓN DE IDENTIFICADOR POR ROL ---
+        // ADMIN: debe usar email/username (no cédula) si tiene email registrado.
+        // COORDINADOR y SUB_LIDER: pueden usar cédula o email/username indistintamente.
+        if (rol_nombre === 'ADMIN') {
+            const cedulaNorm = (user.cedula || '').replace(/[-\s]/g, '');
+            const loginEsCedula = user.cedula && (loginValue === user.cedula || loginNormalizado === cedulaNorm);
+            if (loginEsCedula && (user.email_login || user.username)) {
+                return res.status(401).json({
+                    ok: false,
+                    code: 'INVALID_IDENTIFIER_TYPE',
+                    message: 'Los administradores deben iniciar sesión usando su correo electrónico.'
+                });
+            }
+        }
 
         // 1. Validar si está bloqueado por intentos
         if (user.locked_until && new Date(user.locked_until) > new Date()) {
-            return res.status(423).json({ ok: false, code: 'ACCOUNT_LOCKED', message: 'Cuenta bloqueada temporalmente por múltiples intentos fallidos. Intenta más tarde.' });
+            return res.status(423).json({ ok: false, code: 'ACCOUNT_LOCKED', message: 'Cuenta bloqueada temporalmente. Intenta más tarde.' });
         }
 
         // 2. Estado de usuario Activo
         if (user.estado_usuario_nombre !== 'Activo') {
-            return res.status(403).json({ ok: false, code: 'USER_INACTIVE', message: 'Usuario inactivo o bloqueado por el administrador' });
+            return res.status(403).json({ ok: false, code: 'USER_INACTIVE', message: 'Usuario inactivo o bloqueado' });
         }
 
         // 3. Verificar password
         if (!user.password_hash) {
-            return res.status(401).json({ ok: false, code: 'NO_PASSWORD', message: 'Este usuario no tiene contraseña configurada' });
+            return res.status(401).json({ ok: false, code: 'INVALID_CREDENTIALS', message: 'Credenciales inválidas' });
         }
-
         const passwordOk = await bcrypt.compare(password, user.password_hash);
 
         if (!passwordOk) {
-            // Incrementar intentos fallidos
             const failedAttempts = (user.failed_login_attempts || 0) + 1;
             if (failedAttempts >= 5) {
-                // Bloquear cuenta por 15 minutos
                 await pool.query(
                     `UPDATE usuarios SET failed_login_attempts = $1, locked_until = NOW() + INTERVAL '15 minutes' WHERE usuario_id = $2`,
                     [failedAttempts, user.usuario_id]
                 );
-                return res.status(423).json({ ok: false, code: 'ACCOUNT_LOCKED', message: 'Cuenta bloqueada temporalmente por múltiples intentos fallidos.' });
+                return res.status(423).json({ ok: false, code: 'ACCOUNT_LOCKED', message: 'Cuenta bloqueada por múltiples intentos fallidos.' });
             } else {
                 await pool.query(
                     `UPDATE usuarios SET failed_login_attempts = $1 WHERE usuario_id = $2`,
@@ -100,26 +126,20 @@ u.usuario_id, u.persona_id, u.password_hash,
             }
         }
 
-        // Login Exitoso — resetear contadores y actualizar last_login_at
+        // Login Exitoso
         await pool.query(
             `UPDATE usuarios SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW(), ultimo_login = NOW() WHERE usuario_id = $1`,
             [user.usuario_id]
         );
 
-        const rol_nombre = normalizeRole(user.rol_nombre_db);
+        const jwtPayload = { usuario_id: user.usuario_id, persona_id: user.persona_id, rol_nombre, candidato_id: user.candidato_id };
 
-        // Emitir JWT
-        const jwtPayload = { usuario_id: user.usuario_id, persona_id: user.persona_id, rol_nombre };
-
-        // Resolver lider_id si es LIDER
         let lider_id = null;
-        if (rol_nombre === 'LIDER') {
+        if (['SUB_LIDER', 'LIDER', 'COORDINADOR'].includes(rol_nombre)) {
             const liderRes = await pool.query('SELECT lider_id FROM lideres WHERE persona_id = $1 LIMIT 1', [user.persona_id]);
             if (liderRes.rows.length > 0) {
                 lider_id = liderRes.rows[0].lider_id;
                 jwtPayload.lider_id = lider_id;
-            } else {
-                return res.status(403).json({ ok: false, code: 'USER_NOT_LIDER', message: 'Usuario marcado como LIDER pero sin registro de líder asociado' });
             }
         }
 
@@ -133,8 +153,9 @@ u.usuario_id, u.persona_id, u.password_hash,
                     usuario_id: user.usuario_id,
                     persona_id: user.persona_id,
                     nombre_completo: user.nombre_completo,
-                    rol_nombre,
-                    lider_id
+                    rol_nombre: user.rol_nombre_db, // valor real de BD: 'Admin', 'Coordinador', 'Sub-Líder'
+                    lider_id,
+                    candidato_id: user.candidato_id
                 }
             }
         });
@@ -162,7 +183,8 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res, next) =>
             `SELECT u.usuario_id, u.email_login, eu.nombre AS estado 
              FROM usuarios u 
              JOIN estado_usuario eu ON u.estado_usuario_id = eu.estado_usuario_id
-WHERE(u.email_login = $1 OR u.username = $1)
+             WHERE (u.email_login = $1 OR u.username = $1)
+
              LIMIT 1`,
             [login]
         );
