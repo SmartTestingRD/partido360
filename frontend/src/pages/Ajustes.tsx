@@ -920,6 +920,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
   const [adminForm, setAdminForm] = useState({
     nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: ''
   });
+  const [showAdminPass, setShowAdminPass] = useState(false);
   const userStr = localStorage.getItem('user');
   const currentUserRole = userStr ? JSON.parse(userStr).rol_nombre : '';
   const load = async () => {
@@ -1069,25 +1070,67 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
                       Crear Administrador para: {c.nombre}
                     </h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {[
-                        { key: 'nombres', label: 'Nombres *', placeholder: 'Juan' },
-                        { key: 'apellidos', label: 'Apellidos *', placeholder: 'Pérez' },
-                        { key: 'cedula', label: 'Cédula', placeholder: '000-0000000-0' },
-                        { key: 'telefono', label: 'Teléfono *', placeholder: '809-000-0000' },
-                        { key: 'email_login', label: 'Email de acceso *', placeholder: 'admin@candidato.com' },
-                        { key: 'password', label: 'Contraseña inicial *', placeholder: 'Mínimo 8 caracteres' },
-                      ].map(f => (
-                        <div key={f.key}>
-                          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{f.label}</label>
+                      {/* Nombres */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nombres *</label>
+                        <input type="text" placeholder="Juan"
+                          value={adminForm.nombres}
+                          onChange={e => setAdminForm(p => ({...p, nombres: e.target.value}))}
+                          onKeyDown={e => { const allowed=['Backspace','Delete','Tab','ArrowLeft','ArrowRight',' ']; if(!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]$/.test(e.key)&&!allowed.includes(e.key)) e.preventDefault(); }}
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                      </div>
+                      {/* Apellidos */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Apellidos *</label>
+                        <input type="text" placeholder="Pérez"
+                          value={adminForm.apellidos}
+                          onChange={e => setAdminForm(p => ({...p, apellidos: e.target.value}))}
+                          onKeyDown={e => { const allowed=['Backspace','Delete','Tab','ArrowLeft','ArrowRight',' ']; if(!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]$/.test(e.key)&&!allowed.includes(e.key)) e.preventDefault(); }}
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                      </div>
+                      {/* Cédula */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Cédula</label>
+                        <input type="text" placeholder="00000000000" inputMode="numeric" maxLength={11}
+                          value={adminForm.cedula}
+                          onChange={e => setAdminForm(p => ({...p, cedula: e.target.value.replace(/\D/g,'')}))}
+                          onKeyDown={e => { const allowed=['Backspace','Delete','Tab','ArrowLeft','ArrowRight']; if(!/^[0-9]$/.test(e.key)&&!allowed.includes(e.key)) e.preventDefault(); }}
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                      </div>
+                      {/* Teléfono */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Teléfono *</label>
+                        <input type="text" placeholder="8090000000" inputMode="numeric" maxLength={10}
+                          value={adminForm.telefono}
+                          onChange={e => setAdminForm(p => ({...p, telefono: e.target.value.replace(/\D/g,'')}))}
+                          onKeyDown={e => { const allowed=['Backspace','Delete','Tab','ArrowLeft','ArrowRight']; if(!/^[0-9]$/.test(e.key)&&!allowed.includes(e.key)) e.preventDefault(); }}
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                      </div>
+                      {/* Email */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email de acceso *</label>
+                        <input type="text" placeholder="admin@candidato.com"
+                          value={adminForm.email_login}
+                          onChange={e => setAdminForm(p => ({...p, email_login: e.target.value}))}
+                          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none" />
+                      </div>
+                      {/* Contraseña con toggle */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Contraseña inicial *</label>
+                        <div className="relative">
                           <input
-                            type={f.key === 'password' ? 'password' : 'text'}
-                            placeholder={f.placeholder}
-                            value={(adminForm as any)[f.key]}
-                            onChange={e => setAdminForm(p => ({...p, [f.key]: e.target.value}))}
-                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none"
+                            type={showAdminPass ? 'text' : 'password'}
+                            placeholder="Mínimo 8 caracteres"
+                            value={adminForm.password}
+                            onChange={e => setAdminForm(p => ({...p, password: e.target.value}))}
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:border-primary outline-none pr-10"
                           />
+                          <button type="button" onClick={() => setShowAdminPass(v => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                            <span className="material-symbols-outlined text-lg">{showAdminPass ? 'visibility_off' : 'visibility'}</span>
+                          </button>
                         </div>
-                      ))}
+                      </div>
                     </div>
                     <div className="flex gap-3 pt-1">
                       <button onClick={() => handleCreateAdmin(c.candidato_id)} disabled={saving}

@@ -18,13 +18,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'partido360_dev_secret';
 
 /** Normalize any DB role name to canonical uppercase constant */
 function normalizeRole(dbRoleName) {
-    const r = (dbRoleName || '').toLowerCase()
+    const r = (dbRoleName || '').trim().toLowerCase()
         .replace(/-/g, '')   // quita todos los guiones
+        .replace(/_/g, '')   // quita guiones bajos
         .replace(/í/g, 'i'); // normaliza acento
     if (r === 'admin') return 'ADMIN';
     if (r === 'coordinador' || r === 'operador') return 'COORDINADOR';
-    // 'sublider', 'sub_lider', 'lider' y cualquier variante → SUB_LIDER
-    if (r === 'sublider' || r === 'sub_lider' || r === 'lider') return 'SUB_LIDER';
+    // 'sublider', 'sublider', 'lider' y cualquier variante → SUB_LIDER
+    if (r === 'sublider' || r === 'lider') return 'SUB_LIDER';
     return (dbRoleName || '').toUpperCase(); // fallback
 }
 
@@ -48,7 +49,6 @@ async function authenticate(req, res, next) {
 
     const rol_nombre = normalizeRole(payload.rol_nombre);
 
-    console.log(`[auth] JWT payload: usuario_id=${payload.usuario_id}, rol_nombre(raw)=${payload.rol_nombre}, rol_nombre(norm)=${rol_nombre}, candidato_id=${payload.candidato_id}`);
 
     req.user = {
         usuario_id: payload.usuario_id,

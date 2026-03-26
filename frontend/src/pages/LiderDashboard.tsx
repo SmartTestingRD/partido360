@@ -22,6 +22,7 @@ const LiderDashboard: React.FC = () => {
     } | null>(null);
 
     useEffect(() => {
+        if (!localStorage.getItem('token')) return;
         const userStr = localStorage.getItem('user');
         const currentUser = userStr ? JSON.parse(userStr) : null;
         if (currentUser?.lider_id) {
@@ -55,7 +56,7 @@ const LiderDashboard: React.FC = () => {
             {/* ── Botón principal mobile-first ── */}
             <button
               onClick={() => { window.location.hash = 'captacion'; }}
-              className="w-full bg-blue-600 active:bg-blue-800 text-white font-semibold py-5 px-6 rounded-2xl text-lg flex items-center justify-center gap-3 shadow-lg mb-6 transition-all active:scale-95"
+              className="w-full md:w-auto md:px-8 bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 md:py-3 px-6 rounded-2xl text-base md:text-sm flex items-center justify-center gap-3 shadow-md active:scale-95 transition-transform mb-6"
             >
               <span className="material-symbols-outlined text-3xl">person_add</span>
               <span>Registrar nueva persona</span>
@@ -96,78 +97,43 @@ const LiderDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Menu Options - Mobile First App Layout */}
-            <div className="flex flex-col gap-5 md:grid md:grid-cols-3 md:gap-6 max-w-4xl mx-auto">
-                {/* Opcion 1: Registrar Nuevo */}
-                <a
-                    href="#captacion"
-                    className="flex items-center p-6 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-transform duration-200 group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 p-8 w-40 h-40 bg-white/10 rounded-full blur-3xl transform translate-x-12 -translate-y-12"></div>
-                    <div className="bg-white/20 p-4 rounded-2xl mr-5 backdrop-blur-md shadow-inner text-white z-10">
-                        <span className="material-symbols-outlined text-[36px] block">person_add</span>
-                    </div>
-                    <div className="flex-1 z-10">
-                        <h3 className="text-xl font-bold text-white mb-1">Registrar Nuevo</h3>
-                        <p className="text-blue-100 text-sm font-medium leading-tight">Captar un nuevo simpatizante para la estructura.</p>
-                    </div>
-                    <div className="text-white z-10 bg-white/20 rounded-full p-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                        <span className="material-symbols-outlined text-[24px]">chevron_right</span>
-                    </div>
-                </a>
-
-                {/* Opcion 2: Consultar mis captados */}
-                <a
-                    href="#personas"
-                    className="flex items-center p-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl shadow-xl shadow-emerald-900/20 active:scale-[0.98] transition-transform duration-200 group relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 p-8 w-40 h-40 bg-white/10 rounded-full blur-3xl transform translate-x-12 -translate-y-12"></div>
-                    <div className="bg-white/20 p-4 rounded-2xl mr-5 backdrop-blur-md shadow-inner text-white z-10">
-                        <span className="material-symbols-outlined text-[36px] block">groups</span>
-                    </div>
-                    <div className="flex-1 z-10">
-                        <h3 className="text-xl font-bold text-white mb-1">Mis Captados</h3>
-                        <p className="text-emerald-100 text-sm font-medium leading-tight">Consultar y gestionar las personas que has captado.</p>
-                    </div>
-                    <div className="text-white z-10 bg-white/20 rounded-full p-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                        <span className="material-symbols-outlined text-[24px]">chevron_right</span>
-                    </div>
-                </a>
-
-                {/* Opcion 3: Convertir Lider */}
+            {/* Menu Options */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+                {/* Card Registrar Nuevo */}
                 <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="w-full text-left flex items-center p-6 bg-gradient-to-br from-purple-600 to-fuchsia-700 rounded-3xl shadow-xl shadow-purple-900/20 active:scale-[0.98] transition-transform duration-200 group relative overflow-hidden"
+                    onClick={() => { window.location.hash = 'captacion'; }}
+                    className="bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all rounded-2xl p-4 text-left text-white"
                 >
-                    <div className="absolute top-0 right-0 p-8 w-40 h-40 bg-white/10 rounded-full blur-3xl transform translate-x-12 -translate-y-12"></div>
-                    <div className="bg-white/20 p-4 rounded-2xl mr-5 backdrop-blur-md shadow-inner text-white z-10">
-                        <span className="material-symbols-outlined text-[36px] block">supervisor_account</span>
-                    </div>
-                    <div className="flex-1 z-10">
-                        <h3 className="text-xl font-bold text-white mb-1">Convertir Líder</h3>
-                        <p className="text-purple-100 text-sm font-medium leading-tight">Promover a un simpatizante al rol de líder.</p>
-                    </div>
-                    <div className="text-white z-10 bg-white/20 rounded-full p-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                        <span className="material-symbols-outlined text-[24px]">chevron_right</span>
-                    </div>
+                    <span className="material-symbols-outlined text-2xl mb-2 block">person_add</span>
+                    <div className="font-semibold text-sm">Registrar Nuevo</div>
+                    <div className="text-xs opacity-75 mt-1 hidden sm:block">Captar un nuevo simpatizante</div>
                 </button>
-
-                {/* Opcion 4: Agregar Sub-Líder */}
+                {/* Card Mis Captados */}
                 <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="w-full text-left flex items-center p-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl shadow-xl shadow-amber-900/20 active:scale-[0.98] transition-transform duration-200 group relative overflow-hidden"
+                    onClick={() => { window.location.hash = 'personas'; }}
+                    className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all rounded-2xl p-4 text-left text-white"
                 >
-                    <div className="absolute top-0 right-0 p-8 w-40 h-40 bg-white/10 rounded-full blur-3xl transform translate-x-12 -translate-y-12"></div>
-                    <div className="bg-white/20 p-4 rounded-2xl mr-5 backdrop-blur-md shadow-inner text-white z-10">
-                        <span className="material-symbols-outlined text-[36px] block">group_add</span>
-                    </div>
-                    <div className="flex-1 z-10">
-                        <h3 className="text-xl font-bold text-white mb-1">Agregar Sub-Líder</h3>
-                        <p className="text-amber-100 text-sm font-medium leading-tight">Registrar un nuevo sub-líder bajo tu mandato.</p>
-                    </div>
-                    <div className="text-white z-10 bg-white/20 rounded-full p-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                        <span className="material-symbols-outlined text-[24px]">chevron_right</span>
-                    </div>
+                    <span className="material-symbols-outlined text-2xl mb-2 block">groups</span>
+                    <div className="font-semibold text-sm">Mis Captados</div>
+                    <div className="text-xs opacity-75 mt-1 hidden sm:block">Ver personas registradas</div>
+                </button>
+                {/* Card Convertir Líder */}
+                <button
+                    onClick={() => { window.location.hash = 'personas'; }}
+                    className="bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all rounded-2xl p-4 text-left text-white"
+                >
+                    <span className="material-symbols-outlined text-2xl mb-2 block">how_to_reg</span>
+                    <div className="font-semibold text-sm">Convertir Líder</div>
+                    <div className="text-xs opacity-75 mt-1 hidden sm:block">Promover a rol de líder</div>
+                </button>
+                {/* Card Agregar Sub-Líder */}
+                <button
+                    onClick={() => { window.location.hash = 'lideres'; }}
+                    className="bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all rounded-2xl p-4 text-left text-white"
+                >
+                    <span className="material-symbols-outlined text-2xl mb-2 block">group_add</span>
+                    <div className="font-semibold text-sm">Agregar Sub-Líder</div>
+                    <div className="text-xs opacity-75 mt-1 hidden sm:block">Registrar nuevo sub-líder</div>
                 </button>
             </div>
 

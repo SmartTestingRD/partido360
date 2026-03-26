@@ -36,6 +36,7 @@ const Dashboard: React.FC = () => {
 
 
     const loadData = async () => {
+        if (!localStorage.getItem('token')) return;
         try {
             setLoading(true);
             setError(null);

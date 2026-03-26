@@ -75,15 +75,14 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
             setNivelesLider(n);
             setTodoLideres(all);
             // Set defaults únicamente si el usuario es Admin o elige manualmente
-            const cabeza = n.find(nv => nv.nombre.toLowerCase() === 'cabeza') || n[0];
+            const defaultNivel = n.find(nv => nv.nombre.toLowerCase() !== 'cabeza') || n[0];
             const activo = e.find(ev => ev.nombre.toLowerCase() === 'activo') || e[0];
-            
+
             setForm(prev => ({
                 ...prev,
                 lider: {
                     ...prev.lider,
-                    // Si es jerarquía automática, no forzamos 'Cabeza' en el front, dejamos que el backend decida
-                    nivel_lider_id: isLiderOrCoordinador ? '' : (cabeza?.nivel_lider_id || ''),
+                    nivel_lider_id: isLiderOrCoordinador ? '' : (defaultNivel?.nivel_lider_id || ''),
                     estado_lider_id: activo?.estado_lider_id || '',
                     lider_padre_id: isLiderOrCoordinador && currentLiderId ? currentLiderId : prev.lider.lider_padre_id
                 }
@@ -494,15 +493,15 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Nivel *</label>
                                             {isLiderOrCoordinador ? (
-                                                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-300 italic flex items-center gap-2">
-                                                    <span className="material-symbols-outlined text-sm">auto_fix</span>
-                                                    Asignación Automática (Nivel Inferior)
+                                                <div className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-sm text-blue-500">check_circle</span>
+                                                    <span>Sub-Líder <span className="text-slate-400">(asignado automáticamente)</span></span>
                                                 </div>
                                             ) : (
                                                 <select className="w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary focus:border-primary px-3 py-2 text-sm transition-shadow"
                                                     value={form.lider.nivel_lider_id}
                                                     onChange={e => setForm(p => ({ ...p, lider: { ...p.lider, nivel_lider_id: e.target.value } }))}>
-                                                    {nivelesLider.map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
+                                                    {nivelesLider.filter(n => n.nombre.toLowerCase() !== 'cabeza').map(n => <option key={n.nivel_lider_id} value={n.nivel_lider_id}>{n.nombre}</option>)}
                                                 </select>
                                             )}
                                         </div>

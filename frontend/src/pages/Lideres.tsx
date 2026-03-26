@@ -51,11 +51,12 @@ const Lideres = () => {
     ).toUpperCase().replace(/[-_\s]/g, '');
     const currentLiderId: string | null = _rawUser?.lider_id || _rawUser?.data?.lider_id || _rawUser?.user?.lider_id || null;
 
-    /** ¿Puede el usuario logueado editar este líder? */
+    /** ¿Puede el usuario logueado realizar acciones sobre este líder? */
     const canEdit = (lider: LiderResumen): boolean => {
         if (currentUserRol === 'ADMIN' || currentUserRol === 'COORDINADOR') return true;
         if (currentUserRol === 'SUBLIDER' && currentLiderId) {
-            return lider.lider_id === currentLiderId || lider.lider_padre_id === currentLiderId;
+            // Solo puede actuar sobre sus subordinados directos, NO sobre sí mismo ni su superior
+            return lider.lider_padre_id === currentLiderId;
         }
         return false;
     };
@@ -110,6 +111,7 @@ const Lideres = () => {
 
     // ── Data fetching ─────────────────────────────────────────────────────────
     const fetchLideres = async () => {
+        if (!localStorage.getItem('token')) return;
         setLoading(true);
         setError(null);
         try {
@@ -125,6 +127,7 @@ const Lideres = () => {
     };
 
     const fetchCatalogs = async () => {
+        if (!localStorage.getItem('token')) return;
         try {
             const [s, e, n] = await Promise.all([getSectores(), getEstadosLider(), getNivelesLider()]);
             setSectores(s);
@@ -464,9 +467,11 @@ const Lideres = () => {
                                         </div>
 
                                         <div className="pt-3 border-t border-gray-100 dark:border-gray-700/50 flex flex-wrap justify-end gap-2">
+                                            {canEdit(lider) && (
                                             <button onClick={(e) => { e.stopPropagation(); setSelectedGoalLider(lider); setGoalValue(lider.meta_cantidad); }} className="px-3 py-1.5 bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 rounded-md text-sm font-medium hover:bg-yellow-100">
                                                 Meta
                                             </button>
+                                            )}
                                             {canEdit(lider) && (
                                             <button onClick={(e) => openEditModal(e, lider)} className="px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-md text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40">
                                                 Editar
@@ -475,12 +480,14 @@ const Lideres = () => {
                                             <button onClick={() => window.location.hash = `lideres/${lider.lider_id}`} className="px-3 py-1.5 bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600">
                                                 Perfil
                                             </button>
+                                            {canEdit(lider) && (
                                             <button
                                                 onClick={(e) => handleToggleStatus(e, lider.lider_id, lider.estado_nombre)}
                                                 className={`px-3 py-1.5 rounded-md text-sm font-medium ${lider.estado_nombre.toLowerCase() === 'activo' ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 hover:bg-green-100'}`}
                                             >
                                                 {lider.estado_nombre.toLowerCase() === 'activo' ? 'Inactivar' : 'Activar'}
                                             </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -559,6 +566,7 @@ const Lideres = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex justify-end items-center gap-1">
+                                                        {canEdit(lider) && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); setSelectedGoalLider(lider); setGoalValue(lider.meta_cantidad); }}
                                                             className="text-gray-400 hover:text-yellow-500 transition-colors p-1"
@@ -566,6 +574,7 @@ const Lideres = () => {
                                                         >
                                                             <span className="material-symbols-outlined text-xl">flag</span>
                                                         </button>
+                                                        )}
                                                         {canEdit(lider) && (
                                                         <button
                                                             onClick={(e) => openEditModal(e, lider)}
@@ -582,6 +591,7 @@ const Lideres = () => {
                                                         >
                                                             <span className="material-symbols-outlined text-xl">visibility</span>
                                                         </button>
+                                                        {canEdit(lider) && (
                                                         <button
                                                             onClick={(e) => handleToggleStatus(e, lider.lider_id, lider.estado_nombre)}
                                                             className={`transition-colors p-1 ${lider.estado_nombre.toLowerCase() === 'activo' ? 'text-gray-400 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`}
@@ -591,6 +601,7 @@ const Lideres = () => {
                                                                 {lider.estado_nombre.toLowerCase() === 'activo' ? 'block' : 'check_circle'}
                                                             </span>
                                                         </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>

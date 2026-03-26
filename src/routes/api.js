@@ -973,23 +973,19 @@ router.put('/lideres/:id', authenticate, async (req, res) => {
     const esAdmin = rolNorm === 'ADMIN' || rolNorm === 'SUPERADMIN';
     const esCoord = rolNorm === 'COORDINADOR';
     const esSubLider = rolNorm.includes('LIDER') || rolNorm.includes('SUBLIDER');
-    console.log(`[PUT /lideres/:id] id=${id} rolRaw="${rolRaw}" rolNorm="${rolNorm}" esAdmin=${esAdmin} esCoord=${esCoord} esSubLider=${esSubLider}`);
     if (!esAdmin && !esCoord && !esSubLider) {
       return res.status(403).json({ ok: false, message: 'Sin permisos' });
     }
     if (!esAdmin && !esCoord) {
       const miLiderId = req.user.lider_id;
-      console.log(`[PUT /lideres/:id] SubLider check: miLiderId=${miLiderId}`);
       if (miLiderId) {
         const targetRes = await pool.query(
           'SELECT lider_id, lider_padre_id FROM lideres WHERE lider_id = $1',
           [id]
         );
         const target = targetRes.rows[0];
-        console.log(`[PUT /lideres/:id] target=${JSON.stringify(target)}`);
         const esPropio = target?.lider_id === miLiderId;
         const esSubordinado = target?.lider_padre_id === miLiderId;
-        console.log(`[PUT /lideres/:id] esPropio=${esPropio} esSubordinado=${esSubordinado}`);
         if (!esPropio && !esSubordinado) {
           return res.status(403).json({ ok: false, message: 'Solo puedes editar líderes bajo tu cargo' });
         }
@@ -1202,7 +1198,6 @@ router.get('/personas', authenticate, async (req, res, next) => {
 
 // POST /lideres/crear (Transaccional — Modo EXISTENTE | NUEVO)
 router.post('/lideres/crear', authenticate, async (req, res, next) => {
-    console.log('[POST /lideres/crear] body:', JSON.stringify(req.body));
     const client = await pool.connect();
     try {
         const { modo, persona_existente, persona_nueva, lider, usuario } = req.body;
@@ -1734,12 +1729,12 @@ router.post('/personas/:id/convertir-lider', authenticate, async (req, res) => {
             nivelId = nivelRes.rows[0]?.nivel_lider_id;
         }
 
+        const codigoLider = `LDR-${Date.now().toString().slice(-6)}`;
         const liderRes = await pool.query(
-            `INSERT INTO lideres (persona_id, nombres, apellidos, telefono, sector_id, meta_cantidad, estado_lider_id, nivel_lider_id, lider_padre_id, candidato_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            `INSERT INTO lideres (persona_id, meta_cantidad, codigo_lider, estado_lider_id, nivel_lider_id, lider_padre_id, fecha_inicio, candidato_id)
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7)
              RETURNING *`,
-            [id, persona.nombres, persona.apellidos, persona.telefono,
-             sector_id || persona.sector_id, meta_cantidad || 10,
+            [id, meta_cantidad || 10, codigoLider,
              estadoLiderId, nivelId, lider_padre_id || null,
              candidatoId || '00000000-0000-0000-0000-000000000001']
         );
@@ -1753,6 +1748,67 @@ router.post('/personas/:id/convertir-lider', authenticate, async (req, res) => {
         console.error('[POST /personas/:id/convertir-lider]', err.message);
         res.status(500).json({ ok: false, message: err.message });
     }
+});
+
+// ── MILITANCIA ────────────────────────────────────────────────────────────────
+router.get('/militancia', authenticate, async (req, res) => {
+    try {
+        const candidatoId = await getCandidatoId(req);
+        const { search, estado, page = 1, pageSize = 20 } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(pageSize);
+        let conditions = [];
+        let params = [];
+        let i = 1;
+        if (candidatoId) { conditions.push(`m.candidato_id = $${i++}`); params.push(candidatoId); }
+        if (search) { conditions.push(`(p.nombres ILIKE $${i} OR p.apellidos ILIKE $${i} OR p.cedula ILIKE $${i})`); params.push(`%${search}%`); i++; }
+        if (estado) { conditions.push(`m.estado = $${i++}`); params.push(estado); }
+        const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+        const query = `SELECT m.*, p.nombres||' '||p.apellidos as nombre_completo, p.cedula, p.telefono, s.nombre as sector
+                       FROM militancia m
+                       JOIN personas p ON m.persona_id = p.persona_id
+                       LEFT JOIN sectores s ON p.sector_id = s.sector_id
+                       ${where} ORDER BY m.fecha_afiliacion DESC
+                       LIMIT $${i} OFFSET $${i+1}`;
+        params.push(parseInt(pageSize), offset);
+        const countQuery = `SELECT COUNT(*) FROM militancia m JOIN personas p ON m.persona_id = p.persona_id ${where}`;
+        const [result, count] = await Promise.all([
+            pool.query(query, params),
+            pool.query(countQuery, params.slice(0, -2))
+        ]);
+        res.json({ ok: true, data: result.rows, total: parseInt(count.rows[0].count), page: parseInt(page), pageSize: parseInt(pageSize) });
+    } catch (err) { res.status(500).json({ ok: false, message: err.message }); }
+});
+
+router.post('/militancia', authenticate, async (req, res) => {
+    try {
+        const { persona_id, estado = 'Activo', numero_carnet, fecha_afiliacion, observaciones } = req.body;
+        const candidatoId = await getCandidatoId(req) || '00000000-0000-0000-0000-000000000001';
+        const existe = await pool.query('SELECT militancia_id FROM militancia WHERE persona_id = $1', [persona_id]);
+        if (existe.rows[0]) return res.status(400).json({ ok: false, message: 'Esta persona ya está registrada en militancia' });
+        const result = await pool.query(
+            'INSERT INTO militancia (persona_id, candidato_id, estado, numero_carnet, fecha_afiliacion, observaciones) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+            [persona_id, candidatoId, estado, numero_carnet || null, fecha_afiliacion || new Date().toISOString().split('T')[0], observaciones || null]
+        );
+        res.json({ ok: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ ok: false, message: err.message }); }
+});
+
+router.put('/militancia/:id', authenticate, async (req, res) => {
+    try {
+        const { estado, numero_carnet, observaciones } = req.body;
+        const result = await pool.query(
+            'UPDATE militancia SET estado=$1, numero_carnet=$2, observaciones=$3 WHERE militancia_id=$4 RETURNING *',
+            [estado, numero_carnet, observaciones, req.params.id]
+        );
+        res.json({ ok: true, data: result.rows[0] });
+    } catch (err) { res.status(500).json({ ok: false, message: err.message }); }
+});
+
+router.delete('/militancia/:id', authenticate, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM militancia WHERE militancia_id = $1', [req.params.id]);
+        res.json({ ok: true, message: 'Registro eliminado' });
+    } catch (err) { res.status(500).json({ ok: false, message: err.message }); }
 });
 
 // GET /usuarios/lista
@@ -2032,31 +2088,15 @@ router.post('/lideres/hierarchy', authenticate, async (req, res, next) => {
 
         await client.query('BEGIN');
 
-        // 2. Determinar Nivel (Jerarquía)
-        const levelsRes = await client.query('SELECT nivel_lider_id, nombre FROM nivel_lider ORDER BY nivel_lider_id ASC');
-        const levels = levelsRes.rows;
-        const maxLevels = levels.length;
-
-        const upwardPathQuery = `
-            WITH RECURSIVE upward_path AS (
-                SELECT lider_id, lider_padre_id, 1 as depth
-                FROM lideres WHERE lider_id = $1 AND candidato_id = $2
-                UNION ALL
-                SELECT l.lider_id, l.lider_padre_id, up.depth + 1
-                FROM lideres l JOIN upward_path up ON l.lider_id = up.lider_padre_id
-            )
-            SELECT MAX(depth) as current_depth FROM upward_path
-        `;
-        const depthRes = await client.query(upwardPathQuery, [lider_padre_id, req.user.candidato_id]);
-        if (depthRes.rows.length === 0 || depthRes.rows[0].current_depth === null) {
+        // 2. Determinar Nivel — siempre Sub-Líder al crear por jerarquía
+        const subLiderLevelRes = await client.query(
+            "SELECT nivel_lider_id FROM nivel_lider WHERE LOWER(nombre) ILIKE '%sub%' ORDER BY nombre LIMIT 1"
+        );
+        if (!subLiderLevelRes.rows[0]) {
             await client.query('ROLLBACK');
-            return res.status(404).json({ ok: false, message: 'Líder padre no encontrado' });
+            return res.status(500).json({ ok: false, message: 'Nivel Sub-Líder no encontrado en catálogo' });
         }
-        const currentDepth = parseInt(depthRes.rows[0].current_depth);
-
-        // Sin límite de jerarquía: cualquier rol puede crear sub-líderes
-        // Si currentDepth supera el número de niveles definidos, reutilizamos el último nivel
-        const nextLevel = levels[Math.min(currentDepth, levels.length - 1)];
+        const nextLevel = subLiderLevelRes.rows[0];
 
         let persona_id;
         let nombres_notif = '';

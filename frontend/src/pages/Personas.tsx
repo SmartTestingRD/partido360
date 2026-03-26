@@ -36,6 +36,7 @@ const Personas = () => {
     const [isConversionModalOpen, setConversionModalOpen] = useState(false);
     const [confirmConvertOpen, setConfirmConvertOpen] = useState(false);
     const [metaCantidad, setMetaCantidad] = useState<number>(10);
+    const [convertSectorId, setConvertSectorId] = useState<string>('');
     const [nivelLiderId, setNivelLiderId] = useState<string>('');
     const [estadoLiderId, setEstadoLiderId] = useState<string>('');
     const [liderPadreId, setLiderPadreId] = useState<string>('');
@@ -56,6 +57,7 @@ const Personas = () => {
     }, [selectedPersonaId]);
 
     useEffect(() => {
+        if (!localStorage.getItem('token')) return;
         const fetchCatalogos = async () => {
             try {
                 const [sectoresData, lideresData, nivelesLiderData, estadosLiderData] = await Promise.all([
@@ -81,6 +83,7 @@ const Personas = () => {
     }, []);
 
     const fetchPersonasData = async () => {
+        if (!localStorage.getItem('token')) return;
         setLoading(true);
         setError(null);
         try {
@@ -113,8 +116,14 @@ const Personas = () => {
         setConversionSuccess(null);
         setIsConverting(true);
         try {
+            if (!convertSectorId) {
+                setConversionError('Selecciona un sector');
+                setIsConverting(false);
+                return;
+            }
             await axios.post(`${API_URL}/personas/${personaDetalle.persona.persona_id}/convertir-lider`, {
                 meta_cantidad: metaCantidad,
+                sector_id: convertSectorId || undefined,
                 nivel_lider_id: nivelLiderId || undefined,
                 lider_padre_id: liderPadreId || null,
             });
@@ -300,9 +309,9 @@ const Personas = () => {
                                             <th className="px-6 py-4" scope="col">Centro de Votación</th>
                                             <th className="px-6 py-4" scope="col">Mesa</th>
                                             <th className="px-6 py-4" scope="col">Líder Asignado</th>
-                                            <th className="px-6 py-4" scope="col">Fuente</th>
+                                            <th className="px-6 py-4 hidden" scope="col">Fuente</th>
                                             <th className="px-6 py-4" scope="col">Estado</th>
-                                            <th className="px-6 py-4" scope="col">Fecha Registro</th>
+                                            <th className="px-6 py-4 hidden" scope="col">Fecha Registro</th>
                                             <th className="px-6 py-4 text-right" scope="col">Acciones</th>
                                         </tr>
                                     </thead>
@@ -336,7 +345,7 @@ const Personas = () => {
                                                             <span className="text-xs italic text-gray-400">Sin asignar</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                    <td className="px-6 py-4 whitespace-nowrap hidden">
                                                         <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{persona.fuente_nombre || 'Sistema'}</span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -345,18 +354,18 @@ const Personas = () => {
                                                             {persona.estado_nombre}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{new Date(persona.fecha_registro).toLocaleDateString()}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 hidden">{new Date(persona.fecha_registro).toLocaleDateString()}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <div className="flex items-center justify-end gap-3">
                                                             {persona.estado_nombre === 'Pendiente' && (
-                                                                <button className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20" title="Validar">
+                                                                <button className="text-green-600 hover:text-green-700 p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20" title="Validar">
                                                                     <span className="material-symbols-outlined text-xl">check_circle</span>
                                                                 </button>
                                                             )}
-                                                            <button onClick={() => window.location.hash = `personas/${persona.persona_id}`} className="text-primary hover:text-blue-700 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Ver Detalle">
+                                                            <button onClick={() => window.location.hash = `personas/${persona.persona_id}`} className="text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Ver Detalle">
                                                                 <span className="material-symbols-outlined text-xl">visibility</span>
                                                             </button>
-                                                            <button className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" title="Más opciones">
+                                                            <button className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" title="Más opciones">
                                                                 <span className="material-symbols-outlined text-xl">more_vert</span>
                                                             </button>
                                                         </div>
@@ -574,6 +583,19 @@ const Personas = () => {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sector <span className="text-red-500">*</span></label>
+                                        <select
+                                            value={convertSectorId}
+                                            onChange={(e) => setConvertSectorId(e.target.value)}
+                                            className="block w-full rounded-lg border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary dark:bg-gray-800 dark:text-white py-2.5 sm:text-sm"
+                                        >
+                                            <option value="">Seleccionar sector...</option>
+                                            {sectores.map(s => (
+                                                <option key={s.sector_id} value={s.sector_id}>{s.nombre}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meta de Captación</label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -599,7 +621,7 @@ const Personas = () => {
                                             className="block w-full rounded-lg border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-primary dark:bg-gray-800 dark:text-white py-2.5 sm:text-sm"
                                         >
                                             <option value="">Seleccionar nivel...</option>
-                                            {nivelesLider.map(nl => (
+                                            {nivelesLider.filter(nl => nl.nombre?.toLowerCase() !== 'cabeza').map(nl => (
                                                 <option key={nl.nivel_lider_id} value={nl.nivel_lider_id}>{nl.nombre}</option>
                                             ))}
                                         </select>
@@ -649,7 +671,7 @@ const Personas = () => {
                             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100 dark:border-gray-700">
                                 <button
                                     onClick={() => setConfirmConvertOpen(true)}
-                                    disabled={isConverting || !nivelLiderId || !estadoLiderId}
+                                    disabled={isConverting || !convertSectorId || !nivelLiderId || !estadoLiderId}
                                     className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
                                 >
                                     {isConverting ? (
