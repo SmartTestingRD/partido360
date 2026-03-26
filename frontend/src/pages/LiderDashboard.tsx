@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CreateLiderModal from '../components/CreateLiderModal';
 import axios from 'axios';
+import { API_URL } from '../api/apiService';
 
 const LiderDashboard: React.FC = () => {
     // Attempting to retrieve user from localStorage for a personalized greeting
@@ -26,7 +27,7 @@ const LiderDashboard: React.FC = () => {
         const userStr = localStorage.getItem('user');
         const currentUser = userStr ? JSON.parse(userStr) : null;
         if (currentUser?.lider_id) {
-            axios.get(`http://localhost:3001/api/lideres/${currentUser.lider_id}`, {
+            axios.get(`${API_URL}/lideres/${currentUser.lider_id}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             }).then(res => {
                 const { metricas, lider } = res.data.data;
