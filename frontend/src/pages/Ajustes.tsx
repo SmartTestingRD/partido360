@@ -973,7 +973,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
       toast(e.response?.data?.message || 'Error al crear admin', 'error');
     } finally { setSaving(false); }
   };
-  if (currentUserRole !== 'ADMIN') {
+  if (currentUserRole?.toUpperCase() !== 'ADMIN') {
     return (
       <Card>
         <div className="p-8 text-center text-gray-400">
