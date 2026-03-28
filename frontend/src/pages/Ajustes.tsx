@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ConfirmModal from '../components/ConfirmModal';
 
-const API = 'http://localhost:3001/api';
+import { API_URL } from '../api/apiService';
+const API = API_URL;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 type ToastType = 'success' | 'error' | 'info';
@@ -675,7 +676,7 @@ const TabSectores = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
   const load = async () => {
     setLoading(true);
     try {
-      const r = await axios.get('http://localhost:3001/api/sectores/todos', authHeader);
+      const r = await axios.get(`${API}/sectores/todos`, authHeader);
       setSectores(r.data.data);
     } catch { toast('Error cargando centros', 'error'); }
     finally { setLoading(false); }
@@ -687,7 +688,7 @@ const TabSectores = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     if (!newNombre.trim()) return;
     setSaving(true);
     try {
-      await axios.post('http://localhost:3001/api/sectores', { nombre: newNombre }, authHeader);
+      await axios.post(`${API}/sectores`, { nombre: newNombre }, authHeader);
       toast('Centro agregado ✓', 'success');
       setNewNombre('');
       load();
@@ -698,7 +699,7 @@ const TabSectores = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
   const handleEdit = async (id: string) => {
     if (!editNombre.trim()) return;
     try {
-      await axios.put(`http://localhost:3001/api/sectores/${id}`, { nombre: editNombre }, authHeader);
+      await axios.put(`${API}/sectores/${id}`, { nombre: editNombre }, authHeader);
       toast('Actualizado ✓', 'success');
       setEditId(null);
       load();
@@ -709,7 +710,7 @@ const TabSectores = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     if (!confirmDeleteId) return;
     setDeleting(true);
     try {
-      await axios.delete(`http://localhost:3001/api/sectores/${confirmDeleteId}`, authHeader);
+      await axios.delete(`${API}/sectores/${confirmDeleteId}`, authHeader);
       toast('Centro de votación eliminado ✓', 'success');
       setSectores(prev => prev.filter(s => s.sector_id !== confirmDeleteId));
     } catch (e: any) {
@@ -809,7 +810,7 @@ const TabLideres = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
   const load = async () => {
     setLoading(true);
     try {
-      const r = await axios.get('http://localhost:3001/api/lideres-resumen?pageSize=100');
+      const r = await axios.get(`${API}/lideres-resumen?pageSize=100`);
       setLideres(r.data.data);
     } catch { toast('Error cargando líderes', 'error'); }
     finally { setLoading(false); }
@@ -825,11 +826,11 @@ const TabLideres = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
   const handleToggle = async (liderId: string, estadoNombre: string) => {
     const isActivo = estadoNombre.toLowerCase() === 'activo';
     try {
-      const estRes = await axios.get('http://localhost:3001/api/estado-lider');
+      const estRes = await axios.get(`${API}/estado-lider`);
       const estados = estRes.data.data;
       const target = estados.find((e: any) => e.nombre.toLowerCase() === (isActivo ? 'inactivo' : 'activo'));
       if (!target) return;
-      await axios.put(`http://localhost:3001/api/lideres/${liderId}`, { estado_lider_id: target.estado_lider_id });
+      await axios.put(`${API}/lideres/${liderId}`, { estado_lider_id: target.estado_lider_id });
       toast(`Líder ${isActivo ? 'inactivado' : 'activado'} ✓`, 'success');
       load();
     } catch { toast('Error al cambiar estado', 'error'); }
@@ -926,7 +927,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
   const load = async () => {
     setLoading(true);
     try {
-      const r = await axios.get('http://localhost:3001/api/candidatos');
+      const r = await axios.get(`${API}/candidatos`);
       setCandidatos(r.data.data);
     } catch { toast('Error cargando candidatos', 'error'); }
     finally { setLoading(false); }
@@ -937,11 +938,11 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     setSaving(true);
     try {
       if (editId) {
-        await axios.put(`http://localhost:3001/api/candidatos/${editId}`, form);
+        await axios.put(`${API}/candidatos/${editId}`, form);
         toast('Candidato actualizado ✓', 'success');
         setEditId(null);
       } else {
-        await axios.post('http://localhost:3001/api/candidatos', form);
+        await axios.post(`${API}/candidatos`, form);
         toast('Candidato creado ✓', 'success');
         setShowForm(false);
       }
@@ -952,7 +953,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
   };
   const handleToggle = async (id: string, activo: boolean) => {
     try {
-      await axios.put(`http://localhost:3001/api/candidatos/${id}`, { activo: !activo });
+      await axios.put(`${API}/candidatos/${id}`, { activo: !activo });
       toast(`Candidato ${!activo ? 'activado' : 'desactivado'} ✓`, 'success');
       load();
     } catch { toast('Error', 'error'); }
@@ -964,7 +965,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
     }
     setSaving(true);
     try {
-      await axios.post(`http://localhost:3001/api/candidatos/${candidatoId}/admin`, adminForm);
+      await axios.post(`${API}/candidatos/${candidatoId}/admin`, adminForm);
       toast('Admin del candidato creado ✓', 'success');
       setShowAdminForm(null);
       setAdminForm({ nombres: '', apellidos: '', cedula: '', telefono: '', email_login: '', password: '' });
@@ -972,7 +973,7 @@ const TabCandidatos = ({ toast }: { toast: (m: string, t?: ToastType) => void })
       toast(e.response?.data?.message || 'Error al crear admin', 'error');
     } finally { setSaving(false); }
   };
-  if (currentUserRole !== 'ADMIN') {
+  if (currentUserRole?.toUpperCase() !== 'ADMIN') {
     return (
       <Card>
         <div className="p-8 text-center text-gray-400">
@@ -1170,7 +1171,7 @@ const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
   const load = async () => {
     setLoading(true);
     try {
-      const r = await axios.get('http://localhost:3001/api/fuentes/todas', authHeader);
+      const r = await axios.get(`${API}/fuentes/todas`, authHeader);
       setFuentes(r.data.data);
     } catch { toast('Error cargando fuentes', 'error'); }
     finally { setLoading(false); }
@@ -1181,7 +1182,7 @@ const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
     if (!newNombre.trim()) return;
     setSaving(true);
     try {
-      await axios.post('http://localhost:3001/api/fuentes', { nombre: newNombre }, authHeader);
+      await axios.post(`${API}/fuentes`, { nombre: newNombre }, authHeader);
       toast('Fuente agregada ✓', 'success');
       setNewNombre('');
       load();
@@ -1192,7 +1193,7 @@ const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
   const handleEdit = async (id: string) => {
     if (!editNombre.trim()) return;
     try {
-      await axios.put(`http://localhost:3001/api/fuentes/${id}`, { nombre: editNombre }, authHeader);
+      await axios.put(`${API}/fuentes/${id}`, { nombre: editNombre }, authHeader);
       toast('Actualizado ✓', 'success');
       setEditId(null);
       load();
@@ -1203,7 +1204,7 @@ const TabFuentes = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =>
     if (!confirmDeleteId) return;
     setDeleting(true);
     try {
-      await axios.delete(`http://localhost:3001/api/fuentes/${confirmDeleteId}`, authHeader);
+      await axios.delete(`${API}/fuentes/${confirmDeleteId}`, authHeader);
       toast('Fuente eliminada ✓', 'success');
       setFuentes(prev => prev.filter(f => f.fuente_id !== confirmDeleteId));
     } catch (e: any) {

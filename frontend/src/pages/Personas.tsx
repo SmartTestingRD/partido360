@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
 import ConfirmModal from '../components/ConfirmModal';
 
-const API_URL = 'http://localhost:3001/api';
+import { API_URL } from '../api/apiService';
 
 const Personas = () => {
     const [personas, setPersonas] = useState<Persona[]>([]);

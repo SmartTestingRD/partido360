@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ConfirmModal from '../components/ConfirmModal';
 
-const API = 'http://localhost:3001/api';
+import { API_URL } from '../api/apiService';
+const API = API_URL;
 
 type ToastType = 'success' | 'error' | 'info';
 interface ToastItem { id: number; message: string; type: ToastType; }

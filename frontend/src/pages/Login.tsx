@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../api/apiService';
 
 const Login: React.FC = () => {
     const [identifier, setIdentifier] = useState('');
@@ -12,7 +13,7 @@ const Login: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch('http://localhost:3001/api/auth/login', {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identifier, password })
