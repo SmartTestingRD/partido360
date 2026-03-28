@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSectores, getLideres, getFuentes, getUltimoRegistro, postRegistro, Sector, Lider, Fuente, UltimoRegistro, RegistroPayload } from '../api/apiService';
 import axios, { AxiosError } from 'axios';
+import { API_URL } from '../api/apiService';
 
 function formatCedula(value: string): string {
   const digits = value.replace(/\D/g, '');
@@ -30,7 +31,7 @@ const RegistrarPersona = () => {
     async function checkDuplicate(field: 'cedula' | 'telefono', value: string) {
       if (!value || value.replace(/\D/g,'').length < 3) return;
       try {
-        const res = await axios.get(`http://localhost:3001/api/personas/buscar?q=${encodeURIComponent(value)}`);
+        const res = await axios.get(`${API_URL}/personas/buscar?q=${encodeURIComponent(value)}`);
         if (res.data.data && res.data.data.length > 0) {
           setFieldErrors(prev => ({
             ...prev,

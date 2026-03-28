@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from './api/apiService';
 import RegistrarPersona from './pages/RegistrarPersona';
 import Lideres from './pages/Lideres';
 import Personas from './pages/Personas';
@@ -43,7 +44,7 @@ const Layout = ({ children, currentPath, navigate }: { children: React.ReactNode
     const u = JSON.parse(uStr);
     const rolNormLayout = (u.rol_nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[-_\s]/g, '');
     if (rolNormLayout !== 'ADMIN') {
-      axios.get('http://localhost:3001/api/candidatos', {
+      axios.get(`${API_URL}/candidatos`, {
         headers: { Authorization: `Bearer ${token}` }
       }).then(res => {
         if (res.data.data && res.data.data.length > 0) {

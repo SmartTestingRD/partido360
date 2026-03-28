@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getPersonaDetalle, PersonaDetalle as IPersonaDetalle } from '../api/apiService';
 
-const API = 'http://localhost:3001/api';
+import { API_URL } from '../api/apiService';
+const API = API_URL;
 
 const Spinner = () => (
     <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
