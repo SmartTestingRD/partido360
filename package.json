@@ -5,7 +5,10 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "build": "cd frontend && npm install && npm run build",
     "dev": "nodemon src/server.js",
+    "build": "npm run deploy",
+    "deploy": "npm install && cd frontend && npm install && npm run build",
     "predeploy": "node scripts/deploy-safe.js",
     "deploy:check": "node scripts/deploy-safe.js",
     "db:setup": "node scripts/setup-schema.js",
