@@ -12,6 +12,7 @@ const port = process.env.PORT || 3001;
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
+      'https://*.smarttestingrd.vercel.app',
       'https://partido360-git-devops-smarttestingrd.vercel.app',
       'https://partido360.vercel.app',
       'https://dev.political360.online',
