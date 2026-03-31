@@ -273,7 +273,7 @@ const Dashboard: React.FC = () => {
                         <div className="flex flex-row lg:flex-col gap-3 overflow-x-auto hide-scrollbar pb-2 lg:pb-0">
                             <a href="#captacion" className="flex-none lg:w-full flex lg:flex-row flex-col items-center lg:items-start lg:gap-4 p-4 lg:py-4 justify-center w-28 h-auto bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/30 active:scale-95 transition-all hover:shadow-xl group relative overflow-hidden">
                                 <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                <div className="bg-white/20 p-2 rounded-lg mb-2 lg:mb-0">
+                                <div className="bg-white/20 p-2 rounded-lg">
                                     <span className="material-symbols-outlined text-[24px]">how_to_reg</span>
                                 </div>
                                 <div className="text-center lg:text-left z-10">
@@ -285,7 +285,7 @@ const Dashboard: React.FC = () => {
                                 onClick={() => setIsCreateModalOpen(true)}
                                 className="flex-none lg:w-full flex lg:flex-row flex-col items-center lg:items-start lg:gap-4 p-4 lg:py-4 justify-center w-28 h-auto bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm active:scale-95 transition-all hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-md group"
                             >
-                                <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded-lg text-purple-600 mb-2 lg:mb-0 group-hover:bg-purple-100 transition-colors">
+                                <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded-lg text-purple-600 group-hover:bg-purple-100 transition-colors">
                                     <span className="material-symbols-outlined text-[24px]">person_add_alt</span>
                                 </div>
                                 <div className="text-center lg:text-left">
@@ -295,7 +295,7 @@ const Dashboard: React.FC = () => {
                             </button>
 
                             <a href="#ajustes" className="flex-none lg:w-full flex lg:flex-row flex-col items-center lg:items-start lg:gap-4 p-4 lg:py-4 justify-center w-28 h-auto bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm active:scale-95 transition-all hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-md group">
-                                <div className="bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg text-orange-600 mb-2 lg:mb-0 group-hover:bg-orange-100 transition-colors">
+                                <div className="bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg text-orange-600 group-hover:bg-orange-100 transition-colors">
                                     <span className="material-symbols-outlined text-[24px]">summarize</span>
                                 </div>
                                 <div className="text-center lg:text-left">
