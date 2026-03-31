@@ -16,6 +16,7 @@ const corsOptions = {
       'https://partido360-git-devops-smarttestingrd.vercel.app',
       'https://partido360.vercel.app',
       'https://dev.political360.online',
+      'https://political360.online',
       'http://localhost:5173',
       'http://localhost:3000',
     ];
