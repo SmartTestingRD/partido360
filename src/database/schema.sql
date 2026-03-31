@@ -76,6 +76,14 @@ CREATE TABLE estado_usuario (
     activo BOOLEAN DEFAULT TRUE
 );
 
+CREATE TABLE candidatos (
+    candidato_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre VARCHAR(100) NOT NULL,
+    partido VARCHAR(100),
+    activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- ==========================================
 -- 2. TABLAS CORE
@@ -92,6 +100,7 @@ CREATE TABLE personas (
     direccion TEXT,
     fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     estado_persona_id UUID NOT NULL REFERENCES estado_persona(estado_persona_id) ON DELETE RESTRICT,
+    candidato_id UUID NOT NULL REFERENCES candidatos(candidato_id) ON DELETE CASCADE,
     notas TEXT
 );
 
@@ -104,6 +113,7 @@ CREATE TABLE usuarios (
     auth_provider VARCHAR(50) NOT NULL DEFAULT 'local',
     rol_id UUID NOT NULL REFERENCES roles(rol_id) ON DELETE RESTRICT,
     estado_usuario_id UUID NOT NULL REFERENCES estado_usuario(estado_usuario_id) ON DELETE RESTRICT,
+    candidato_id UUID REFERENCES candidatos(candidato_id) ON DELETE CASCADE,
     ultimo_login TIMESTAMP WITH TIME ZONE,
     fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -116,7 +126,8 @@ CREATE TABLE lideres (
     fecha_inicio TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     estado_lider_id UUID NOT NULL REFERENCES estado_lider(estado_lider_id) ON DELETE RESTRICT,
     nivel_lider_id UUID NOT NULL REFERENCES nivel_lider(nivel_lider_id) ON DELETE RESTRICT,
-    lider_padre_id UUID REFERENCES lideres(lider_id) ON DELETE SET NULL
+    lider_padre_id UUID REFERENCES lideres(lider_id) ON DELETE SET NULL,
+    candidato_id UUID NOT NULL REFERENCES candidatos(candidato_id) ON DELETE CASCADE
 );
 
 -- REGLA DE NEGOCIO (App Nivel): Una persona solo puede tener 1 asignación con estado_asignacion = 'Activa'.
@@ -145,6 +156,7 @@ CREATE TABLE eventos (
     descripcion TEXT,
     estado_evento_id UUID NOT NULL REFERENCES estado_evento(estado_evento_id) ON DELETE RESTRICT,
     creado_por_usuario_id UUID REFERENCES usuarios(usuario_id) ON DELETE SET NULL,
+    candidato_id UUID NOT NULL REFERENCES candidatos(candidato_id) ON DELETE CASCADE,
     fecha_creacion TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -211,8 +223,8 @@ INSERT INTO sectores (nombre) VALUES ('Sector Centro'), ('Ensanche Ozama'), ('Vi
 INSERT INTO estado_evento (nombre) VALUES ('Programado'), ('Realizado'), ('Cancelado');
 INSERT INTO roles (nombre, descripcion) VALUES 
 ('Admin', 'Administrador total del sistema'), 
-('Operador', 'Usuario con permisos de gestión pero sin administración de roles/configuración'), 
-('Lider', 'Líder de referidos con acceso solo a su red de personas');
+('Coordinador', 'Gestor de zona o sector con permisos de supervisión'), 
+('Sub-Líder', 'Líder de referidos territorial con acceso a su red');
 INSERT INTO estado_usuario (nombre) VALUES ('Activo'), ('Inactivo'), ('Bloqueado');
 
 -- ==========================================

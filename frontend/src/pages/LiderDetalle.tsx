@@ -44,6 +44,7 @@ const LiderDetalle = ({ id, onBack }: LiderDetalleProps) => {
     const [searchQ, setSearchQ] = useState('');
 
     const fetchData = async () => {
+        if (!localStorage.getItem('token')) return;
         setLoading(true);
         setError(null);
         try {

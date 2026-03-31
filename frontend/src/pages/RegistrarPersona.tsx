@@ -1,6 +1,20 @@
 import { useState, useEffect } from 'react';
 import { getSectores, getLideres, getFuentes, getUltimoRegistro, postRegistro, Sector, Lider, Fuente, UltimoRegistro, RegistroPayload } from '../api/apiService';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
+import { API_URL } from '../api/apiService';
+
+function formatCedula(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 10) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+  return `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10,11)}`;
+}
+function formatTelefono(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0,3)}-${digits.slice(3)}`;
+  return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6,10)}`;
+}
 
 const RegistrarPersona = () => {
     const [sectores, setSectores] = useState<Sector[]>([]);
@@ -12,6 +26,22 @@ const RegistrarPersona = () => {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
+    const [fieldErrors, setFieldErrors] = useState<Record<string,string>>({});
+
+    async function checkDuplicate(field: 'cedula' | 'telefono', value: string) {
+      if (!value || value.replace(/\D/g,'').length < 3) return;
+      try {
+        const res = await axios.get(`${API_URL}/personas/buscar?q=${encodeURIComponent(value)}`);
+        if (res.data.data && res.data.data.length > 0) {
+          setFieldErrors(prev => ({
+            ...prev,
+            [field]: `⚠️ Ya existe una persona registrada con este ${field === 'cedula' ? 'número de cédula' : 'teléfono'}`
+          }));
+        } else {
+          setFieldErrors(prev => ({...prev, [field]: ''}));
+        }
+      } catch {}
+    }
 
     const [formData, setFormData] = useState({
         nombres: '',
@@ -26,7 +56,19 @@ const RegistrarPersona = () => {
         mesa: ''
     });
 
+    // Obtener información del usuario logueado
+    const userStr = localStorage.getItem('user');
+    let currentUser: any = null;
+    if (userStr) {
+        try {
+            currentUser = JSON.parse(userStr);
+        } catch (e) { }
+    }
+    const isLiderRole = currentUser?.rol_nombre === 'SUB_LIDER';
+    const isLider = currentUser?.rol_nombre === 'LIDER';
+
     useEffect(() => {
+        if (!localStorage.getItem('token')) return;
         const fetchData = async () => {
             setLoading(true);
             try {
@@ -40,6 +82,14 @@ const RegistrarPersona = () => {
                 setLideres(lideresData);
                 setFuentes(fuentesData);
                 setUltimoRegistro(ultimoRegistroData);
+
+                // Autocompletar líder si el usuario logueado ya es un líder
+                if (isLiderRole && currentUser?.lider_id) {
+                    setFormData(prev => ({ ...prev, lider: currentUser.lider_id.toString() }));
+                }
+                if (isLider && currentUser?.lider_id) {
+                    setFormData(prev => ({ ...prev, lider: currentUser.lider_id }));
+                }
             } catch (err) {
                 console.error("Error cargando catálogos", err);
                 setError("Error al cargar datos del sistema. Por favor recarga la página.");
@@ -50,15 +100,36 @@ const RegistrarPersona = () => {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const [sectoresData, lideresData] = await Promise.all([
+                    getSectores(),
+                    getLideres()
+                ]);
+                setSectores(sectoresData);
+                setLideres(lideresData);
+            } catch {}
+        }, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        
+        // Bloquear números y caracteres especiales en nombres y apellidos en tiempo real
+        if (name === 'nombres' || name === 'apellidos') {
+            const cleanValue = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]/g, '');
+            setFormData(prev => ({ ...prev, [name]: cleanValue }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleClear = () => {
         setFormData({
             nombres: '', apellidos: '', cedula: '', telefono: '', email: '',
-            sector: '', lider: '', fuente: '', notas: '', mesa: ''
+            sector: '', lider: isLiderRole ? currentUser?.lider_id?.toString() || '' : '', fuente: '', notas: '', mesa: ''
         });
         setError(null);
         setSuccessMsg(null);
@@ -66,6 +137,34 @@ const RegistrarPersona = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // --- Validaciones de Campos Requeridos ---
+        if (!formData.nombres.trim()) { setError('El nombre es obligatorio.'); return; }
+        if (!formData.apellidos.trim()) { setError('El apellido es obligatorio.'); return; }
+        if (!formData.cedula || formData.cedula.length < 11) { setError('La cédula es obligatoria y debe estar completa.'); return; }
+        if (!formData.telefono || formData.telefono.length < 10) { setError('El teléfono es obligatorio y debe estar completo.'); return; }
+        if (!formData.sector) { setError('Debe seleccionar un centro de votación.'); return; }
+        if (!formData.lider) { setError('Debe asignar un líder responsable.'); return; }
+        if (!formData.fuente) { setError('Debe seleccionar una fuente de captación.'); return; }
+
+        // --- Validaciones de Formato ---
+        const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s'-]+$/;
+        if (!nameRegex.test(formData.nombres.trim())) {
+            setError('El nombre solo debe contener letras y espacios.');
+            return;
+        }
+        if (!nameRegex.test(formData.apellidos.trim())) {
+            setError('El apellido solo debe contener letras y espacios.');
+            return;
+        }
+        if (formData.email && formData.email.trim() !== '') {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.email.trim())) {
+                setError('Por favor, ingresa un correo electrónico válido.');
+                return;
+            }
+        }
+
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -111,7 +210,25 @@ const RegistrarPersona = () => {
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8 w-full h-full">
+        <div className="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-4 md:p-8 w-full h-full relative">
+            {/* Loader Overlay */}
+            {submitting && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4 border border-white/20 dark:border-slate-700/50">
+                        <div className="relative">
+                            <div className="w-16 h-16 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-blue-600 animate-pulse">cloud_upload</span>
+                            </div>
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Procesando Registro</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Estamos guardando los datos de forma segura...</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <div className="mb-6 md:mb-8">
                     <div className="hidden md:flex items-center text-sm text-gray-500 dark:text-gray-400 gap-2 mb-2">
@@ -141,7 +258,7 @@ const RegistrarPersona = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
                 <div className="lg:col-span-8">
-                    <form onSubmit={handleSubmit} className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full">
+                    <form onSubmit={handleSubmit} noValidate className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col h-full">
                         <div className="px-6 py-4 border-b border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                 <span className="material-symbols-outlined text-primary">feed</span>
@@ -160,35 +277,63 @@ const RegistrarPersona = () => {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span className="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">person</span>
                                         </div>
-                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
+                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
                                             id="nombres" name="nombres" placeholder="Ej. Juan Carlos" required type="text"
-                                            value={formData.nombres} onChange={handleInputChange} />
+                                            value={formData.nombres} onChange={handleInputChange}
+                                            onBlur={e => {
+                                              if (/\d/.test(e.target.value)) {
+                                                setFieldErrors(prev => ({...prev, nombres: 'El nombre no puede contener números'}));
+                                              } else {
+                                                setFieldErrors(prev => ({...prev, nombres: ''}));
+                                              }
+                                            }} />
                                     </div>
+                                    {fieldErrors.nombres && <p className="text-red-500 text-xs mt-1">{fieldErrors.nombres}</p>}
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="apellidos">
                                         Apellidos <span className="text-red-500">*</span>
                                     </label>
-                                    <input className="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow px-3"
+                                    <input className="block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow px-3"
                                         id="apellidos" name="apellidos" placeholder="Ej. Pérez Rodríguez" required type="text"
-                                        value={formData.apellidos} onChange={handleInputChange} />
+                                        value={formData.apellidos} onChange={handleInputChange}
+                                        onBlur={e => {
+                                          if (/\d/.test(e.target.value)) {
+                                            setFieldErrors(prev => ({...prev, apellidos: 'Los apellidos no pueden contener números'}));
+                                          } else {
+                                            setFieldErrors(prev => ({...prev, apellidos: ''}));
+                                          }
+                                        }} />
+                                    {fieldErrors.apellidos && <p className="text-red-500 text-xs mt-1">{fieldErrors.apellidos}</p>}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 flex justify-between" htmlFor="cedula">
-                                        <span>Cédula</span>
-                                        <span className="text-xs text-gray-400 font-normal bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">Opcional</span>
+                                        <span>Cédula <span className="text-red-500">*</span></span>
                                     </label>
                                     <div className="relative rounded-md shadow-sm group">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span className="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">fingerprint</span>
                                         </div>
-                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
-                                            id="cedula" name="cedula" placeholder="000-0000000-0" type="text"
-                                            value={formData.cedula} onChange={handleInputChange} />
+                                        <input
+                                            className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
+                                            id="cedula"
+                                            name="cedula"
+                                            placeholder="000-0000000-0"
+                                            required
+                                            type="text"
+                                            value={formData.cedula}
+                                            onChange={e => {
+                                              const formatted = formatCedula(e.target.value);
+                                              setFormData(prev => ({ ...prev, cedula: formatted }));
+                                            }}
+                                            maxLength={13}
+                                            onBlur={() => checkDuplicate('cedula', formData.cedula)}
+                                        />
                                     </div>
+                                    {fieldErrors.cedula && <p className="text-red-500 text-xs mt-1">{fieldErrors.cedula}</p>}
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="telefono">
@@ -198,10 +343,23 @@ const RegistrarPersona = () => {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span className="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">smartphone</span>
                                         </div>
-                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
-                                            id="telefono" name="telefono" placeholder="809-000-0000" required type="tel"
-                                            value={formData.telefono} onChange={handleInputChange} />
+                                        <input
+                                            className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
+                                            id="telefono"
+                                            name="telefono"
+                                            placeholder="809-000-0000"
+                                            required
+                                            type="text"
+                                            value={formData.telefono}
+                                            onChange={e => {
+                                              const formatted = formatTelefono(e.target.value);
+                                              setFormData(prev => ({ ...prev, telefono: formatted }));
+                                            }}
+                                            maxLength={12}
+                                            onBlur={() => checkDuplicate('telefono', formData.telefono)}
+                                        />
                                     </div>
+                                    {fieldErrors.telefono && <p className="text-red-500 text-xs mt-1">{fieldErrors.telefono}</p>}
                                 </div>
                             </div>
 
@@ -215,7 +373,7 @@ const RegistrarPersona = () => {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span className="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">mail</span>
                                         </div>
-                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
+                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
                                             id="email" name="email" placeholder="usuario@ejemplo.com" type="email"
                                             value={formData.email} onChange={handleInputChange} />
                                     </div>
@@ -225,7 +383,7 @@ const RegistrarPersona = () => {
                                         Centro de Votación <span className="text-red-500">*</span>
                                     </label>
                                     <div className="relative rounded-md shadow-sm">
-                                        <select className="block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
+                                        <select className="block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
                                             id="sector" name="sector" required value={formData.sector} onChange={handleInputChange} disabled={loading}>
                                             <option value="" disabled>Seleccionar Centro de Votación...</option>
                                             {sectores.map(s => (
@@ -243,7 +401,7 @@ const RegistrarPersona = () => {
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <span className="material-symbols-outlined text-gray-400 group-focus-within:text-primary transition-colors text-xl">tag</span>
                                         </div>
-                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
+                                        <input className="pl-10 block w-full rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
                                             id="mesa" name="mesa" placeholder="Ej. 0001" type="text"
                                             value={formData.mesa} onChange={handleInputChange} />
                                     </div>
@@ -257,19 +415,33 @@ const RegistrarPersona = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="lider">
                                         Líder Responsable <span className="text-red-500">*</span>
                                     </label>
-                                    <select className="block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
-                                        id="lider" name="lider" required value={formData.lider} onChange={handleInputChange} disabled={loading}>
+                                    <select 
+                                        className={`block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow ${isLiderRole ? 'disabled:bg-gray-100 dark:disabled:bg-gray-700 pointer-events-none appearance-none' : ''}`}
+                                        id="lider" 
+                                        name="lider" 
+                                        required 
+                                        value={formData.lider} 
+                                        onChange={handleInputChange} 
+                                        disabled={loading || isLiderRole || isLider}
+                                    >
                                         <option value="" disabled>Asignar Automáticamente...</option>
                                         {lideres.map(l => (
                                             <option key={l.lider_id} value={l.lider_id}>{l.nombre_completo} (Meta: {l.meta_cantidad})</option>
                                         ))}
                                     </select>
+                                    {isLiderRole && (
+                                        <div className="mt-1 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                            <span className="material-symbols-outlined text-sm">lock</span>
+                                            Protegido por tu rol de Líder
+                                        </div>
+                                    )}
+                                    {isLider && <p className="text-xs text-blue-600 mt-1">✓ Asignado automáticamente a tu perfil</p>}
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="fuente">
                                         Fuente de Captación <span className="text-red-500">*</span>
                                     </label>
-                                    <select className="block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary sm:text-sm h-11 transition-shadow"
+                                    <select className="block w-full px-3 rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-primary focus:ring-primary text-base py-3 transition-shadow"
                                         id="fuente" name="fuente" required value={formData.fuente} onChange={handleInputChange} disabled={loading}>
                                         <option value="" disabled>Seleccione Fuente...</option>
                                         {fuentes.map(f => (
@@ -290,10 +462,10 @@ const RegistrarPersona = () => {
                         </div>
 
                         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-border-light dark:border-border-dark flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                            <button onClick={handleClear} disabled={submitting} className="w-full sm:w-auto px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 dark:focus:ring-gray-700 transition-colors" type="button">
+                            <button onClick={handleClear} disabled={submitting} className="w-full sm:w-auto px-5 py-4 sm:py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm text-base font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 dark:focus:ring-gray-700 transition-colors" type="button">
                                 Limpiar
                             </button>
-                            <button disabled={submitting || loading} className="w-full sm:w-auto px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors flex items-center justify-center gap-2 group disabled:opacity-75 disabled:cursor-wait" type="submit">
+                            <button disabled={submitting || loading} className="w-full sm:w-auto px-6 py-4 sm:py-2.5 border border-transparent rounded-xl shadow-sm text-base font-semibold text-white bg-primary hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors flex items-center justify-center gap-2 group disabled:opacity-75 disabled:cursor-wait" type="submit">
                                 {submitting ? (
                                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
