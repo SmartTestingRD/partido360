@@ -262,6 +262,18 @@ export const getEstadosPersona = async (): Promise<EstadoPersona[]> => {
     return response.data.data;
 };
 
+export interface Candidato {
+    candidato_id: string;
+    nombre: string;
+    descripcion?: string | null;
+    activo?: boolean;
+}
+
+export const getCandidatos = async (): Promise<Candidato[]> => {
+    const response = await axios.get(`${API_URL}/candidatos`);
+    return response.data.data;
+};
+
 export interface NivelLider {
     nivel_lider_id: string;
     nombre: string;

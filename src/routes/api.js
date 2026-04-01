@@ -520,7 +520,7 @@ router.get('/lideres-resumen', authenticate, async (req, res, next) => {
         let basePath = `
             FROM lideres l
             JOIN personas p ON l.persona_id = p.persona_id
-            JOIN sectores s ON p.sector_id = s.sector_id
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
             JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
             JOIN nivel_lider nl ON l.nivel_lider_id = nl.nivel_lider_id
             LEFT JOIN (
@@ -615,6 +615,7 @@ router.get('/lideres-resumen', authenticate, async (req, res, next) => {
             }
         });
     } catch (err) {
+        console.error('[GET /lideres-resumen] Error:', err.message, err.stack);
         next(err);
     }
 });
@@ -627,11 +628,11 @@ router.get('/lideres-resumen/export', authenticate, async (req, res, next) => {
         let basePath = `
             FROM lideres l
             JOIN personas p ON l.persona_id = p.persona_id
-            JOIN sectores s ON p.sector_id = s.sector_id
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
             JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
             JOIN nivel_lider nl ON l.nivel_lider_id = nl.nivel_lider_id
             LEFT JOIN (
-                asignaciones a 
+                asignaciones a
                 JOIN estado_asignacion ea ON a.estado_asignacion_id = ea.estado_asignacion_id AND ea.nombre = 'Activa'
             ) ON l.lider_id = a.lider_id
             WHERE 1=1
@@ -712,6 +713,7 @@ router.get('/lideres-resumen/export', authenticate, async (req, res, next) => {
         res.setHeader('Content-Disposition', 'attachment; filename="lideres.csv"');
         res.send(Buffer.from('\uFEFF' + csvContent, 'utf-8')); // Add BOM for Excel
     } catch (err) {
+        console.error('[GET /lideres-resumen/export] Error:', err.message, err.stack);
         next(err);
     }
 });
@@ -1107,6 +1109,8 @@ router.get('/personas', authenticate, async (req, res, next) => {
             LEFT JOIN fuentes_captacion f ON a.fuente_id = f.fuente_id
             LEFT JOIN estado_persona ep ON p.estado_persona_id = ep.estado_persona_id
             WHERE 1=1
+            AND p.cedula != '00000000001'
+            AND p.persona_id != '00000000-0000-0000-0000-000000000001'
         `;
 
         // ── Multi-tenant: filtro por candidato_id ────────────────────────────
@@ -1200,7 +1204,20 @@ router.get('/personas', authenticate, async (req, res, next) => {
 router.post('/lideres/crear', authenticate, async (req, res, next) => {
     const client = await pool.connect();
     try {
-        const { modo, persona_existente, persona_nueva, lider, usuario } = req.body;
+        const { modo, persona_existente, persona_nueva, lider, usuario, candidato_id: bodyCandidata } = req.body;
+
+        // ── 0. Resolver candidato_id ──────────────────────────────────────────
+        const rolNormCaller = (req.user?.rol_nombre || '').toUpperCase().replace(/[-_\s]/g, '');
+        const esAdminCaller = rolNormCaller === 'ADMIN' || rolNormCaller === 'SUPERADMIN';
+        let resolvedCandidatoId;
+        if (esAdminCaller) {
+            if (!bodyCandidata) {
+                return res.status(400).json({ ok: false, code: 'VALIDATION_ERROR', message: 'candidato_id es requerido' });
+            }
+            resolvedCandidatoId = bodyCandidata;
+        } else {
+            resolvedCandidatoId = req.user?.candidato_id || SUPER_ADMIN_CANDIDATO_ID;
+        }
 
         // ── 1. Validar modo ───────────────────────────────────────────────────
         if (!modo || !['EXISTENTE', 'NUEVO'].includes(modo)) {
@@ -1268,7 +1285,7 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
                 `SELECT p.persona_id, p.nombres, p.apellidos, p.cedula, p.telefono, p.email,
                         p.sector_id, p.notas, p.fecha_registro, p.estado_persona_id, p.mesa
                  FROM personas p WHERE p.persona_id = $1 AND p.candidato_id = $2`,
-                [persona_existente.persona_id, req.user.candidato_id]
+                [persona_existente.persona_id, resolvedCandidatoId]
             );
             if (personaCheck.rows.length === 0) {
                 await client.query('ROLLBACK');
@@ -1288,7 +1305,7 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
                 dupVals.push(persona_nueva.cedula);
             }
             dupQ += ') AND candidato_id = $' + (dupVals.length + 1);
-            dupVals.push(req.user?.candidato_id);
+            dupVals.push(resolvedCandidatoId);
             
             const dupRes = await client.query(dupQ, dupVals);
             if (dupRes.rows.length > 0) {
@@ -1306,13 +1323,14 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
             const estadoPersonaId = estPersRes.rows[0]?.estado_persona_id;
 
             const personaIns = await client.query(
-                `INSERT INTO personas (nombres, apellidos, cedula, telefono, email, sector_id, notas, estado_persona_id, mesa)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+                `INSERT INTO personas (nombres, apellidos, cedula, telefono, email, sector_id, notas, estado_persona_id, mesa, candidato_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
                 [
                     persona_nueva.nombres, persona_nueva.apellidos,
                     persona_nueva.cedula || null, persona_nueva.telefono,
                     persona_nueva.email || null, persona_nueva.sector_id,
-                    persona_nueva.notas || null, estadoPersonaId, persona_nueva.mesa || null
+                    persona_nueva.notas || null, estadoPersonaId, persona_nueva.mesa || null,
+                    resolvedCandidatoId
                 ]
             );
             personaData = personaIns.rows[0];
@@ -1332,7 +1350,7 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
 
         // ── 7. Insertar en lideres ────────────────────────────────────────────
         const codigoLider = lider.codigo_lider || `LDR-${Date.now().toString().slice(-6)}`;
-        const candidatoId = await getCandidatoId(req);
+        const candidatoId = resolvedCandidatoId;
         const liderIns = await client.query(
             `INSERT INTO lideres (persona_id, meta_cantidad, nivel_lider_id, estado_lider_id, lider_padre_id, codigo_lider, candidato_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
@@ -1386,13 +1404,16 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
                 return res.status(400).json({ ok: false, code: 'ESTADO_NOT_FOUND', message: `Estado "${estadoNombre}" no encontrado` });
             }
 
-            // Password
+            // Password — si no se provee ninguno, usar 'Clave1234!' como defecto
             let plainPassword = usuario.password || null;
             if (usuario.generar_password_temporal) {
                 password_temporal = generateTempPassword();
                 plainPassword = password_temporal;
             }
-            const password_hash = plainPassword ? await bcrypt.hash(plainPassword, 12) : null;
+            if (!plainPassword) {
+                plainPassword = 'Clave1234!';
+            }
+            const password_hash = await bcrypt.hash(plainPassword, 12);
 
             // Para Sub-Lider: login = cédula (como username), no email_login
             // Esto evita colisiones con el campo email_login único
@@ -1437,7 +1458,7 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
                 });
             }
 
-            const candidatoIdForUser = req.user?.candidato_id || null;
+            const candidatoIdForUser = resolvedCandidatoId;
             const userIns = await client.query(
                 `INSERT INTO usuarios (persona_id, email_login, username, password_hash, rol_id, estado_usuario_id, candidato_id)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1484,10 +1505,19 @@ router.post('/lideres/crear', authenticate, async (req, res, next) => {
 
     } catch (err) {
         await client.query('ROLLBACK');
+        console.error('[POST /lideres/crear] Error:', err.message, '\nStack:', err.stack);
         if (err.code === '23505') {
-            return res.status(409).json({ ok: false, code: 'DUPLICATE_LOGIN', message: 'El email_login o username ya está en uso' });
+            // Determinar qué campo está duplicado por el nombre del constraint
+            let dupMessage = 'El email_login o username ya está en uso';
+            if (err.constraint?.includes('telefono')) dupMessage = 'El teléfono ya está registrado';
+            else if (err.constraint?.includes('cedula')) dupMessage = 'La cédula ya está registrada';
+            return res.status(409).json({ ok: false, code: 'DUPLICATE', message: dupMessage });
         }
-        next(err);
+        if (err.code === '23502') {
+            // NOT NULL constraint — campo faltante
+            return res.status(400).json({ ok: false, code: 'MISSING_FIELD', message: `Campo requerido faltante en la base de datos: ${err.column || err.message}` });
+        }
+        return res.status(500).json({ ok: false, code: 'SERVER_ERROR', message: err.message });
     } finally {
         client.release();
     }
@@ -1697,6 +1727,79 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
         });
     } catch (err) {
         next(err);
+    }
+});
+
+// PUT /personas/:id
+router.put('/personas/:id', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const rolNorm = (req.user?.rol_nombre || '').toUpperCase().replace(/[-_\s]/g, '');
+
+        // ── RBAC Scope ────────────────────────────────────────────────────
+        if (rolNorm === 'COORDINADOR') {
+            const candidatoScope = await getCandidatoId(req);
+            if (candidatoScope) {
+                const check = await pool.query(
+                    'SELECT 1 FROM personas WHERE persona_id = $1 AND candidato_id = $2 LIMIT 1',
+                    [id, candidatoScope]
+                );
+                if (check.rows.length === 0) {
+                    return res.status(403).json({ ok: false, code: 'FORBIDDEN_SCOPE', message: 'No tienes acceso a esta persona' });
+                }
+            }
+        } else if (rolNorm !== 'ADMIN' && rolNorm !== 'SUPERADMIN') {
+            const treeIds = await getLiderTree(req.user.lider_id);
+            const assignCheck = await pool.query(
+                `SELECT 1 FROM asignaciones a
+                 WHERE a.persona_id = $1 AND a.lider_id = ANY($2) LIMIT 1`,
+                [id, treeIds]
+            );
+            if (assignCheck.rows.length === 0) {
+                return res.status(403).json({ ok: false, code: 'FORBIDDEN_SCOPE', message: 'No tienes acceso a esta persona' });
+            }
+        }
+
+        // ── Verificar que la persona existe ───────────────────────────────
+        const exists = await pool.query('SELECT persona_id FROM personas WHERE persona_id = $1', [id]);
+        if (exists.rows.length === 0) {
+            return res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'Persona no encontrada' });
+        }
+
+        // ── Construir UPDATE dinámico ─────────────────────────────────────
+        const { nombres, apellidos, cedula, telefono, email, sector_id, mesa, notas } = req.body;
+        const updates = [];
+        const values = [];
+        let idx = 1;
+
+        if (nombres    !== undefined) { updates.push(`nombres = $${idx++}`);    values.push(nombres.trim()); }
+        if (apellidos  !== undefined) { updates.push(`apellidos = $${idx++}`);  values.push(apellidos.trim()); }
+        if (cedula     !== undefined) { updates.push(`cedula = $${idx++}`);     values.push(cedula?.trim() || null); }
+        if (telefono   !== undefined) { updates.push(`telefono = $${idx++}`);   values.push(telefono.trim()); }
+        if (email      !== undefined) { updates.push(`email = $${idx++}`);      values.push(email?.trim() || null); }
+        if (sector_id  !== undefined) { updates.push(`sector_id = $${idx++}`);  values.push(sector_id || null); }
+        if (mesa       !== undefined) { updates.push(`mesa = $${idx++}`);       values.push(mesa?.trim() || null); }
+        if (notas      !== undefined) { updates.push(`notas = $${idx++}`);      values.push(notas?.trim() || null); }
+
+        if (updates.length === 0) {
+            return res.status(400).json({ ok: false, message: 'No se enviaron campos para actualizar' });
+        }
+
+        values.push(id);
+        const result = await pool.query(
+            `UPDATE personas SET ${updates.join(', ')} WHERE persona_id = $${idx} RETURNING *`,
+            values
+        );
+
+        return res.json({ ok: true, data: result.rows[0], message: 'Persona actualizada correctamente' });
+    } catch (err) {
+        console.error('[PUT /personas/:id] error:', err.message);
+        // Unique constraint: teléfono o cédula duplicados
+        if (err.code === '23505') {
+            const field = err.constraint?.includes('telefono') ? 'teléfono' : 'cédula';
+            return res.status(409).json({ ok: false, code: 'DUPLICATE', message: `El ${field} ya está registrado por otra persona` });
+        }
+        return res.status(500).json({ ok: false, message: err.message });
     }
 });
 
