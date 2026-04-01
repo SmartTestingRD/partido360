@@ -389,6 +389,10 @@ export const updateLider = async (id: string, data: Partial<LiderFormPayload>): 
     return response.data;
 };
 
+export const deleteLider = async (id: string): Promise<void> => {
+    await axios.delete(`${API_URL}/lideres/${id}`);
+};
+
 export const getPersonas = async (params: { q?: string; sector_id?: string; lider_id?: string; estado_persona_id?: string; page?: number; pageSize?: number; }): Promise<PaginatedResponse<Persona>> => {
     const response = await axios.get(`${API_URL}/personas`, { params });
     // Note: handling custom pagination response format if provided, otherwise default mapping

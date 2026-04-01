@@ -493,12 +493,40 @@ router.post('/registro', authenticate, async (req, res, next) => {
         // Disparar validación de meta lograda (asíncrono)
         checkAndNotifyGoalAchievement(pool, lider_id).catch(err => console.error("Error al notificar meta:", err));
 
+        // Obtener datos combinados para el "Ultimo Registro" del frontend (Permisivo para evitar fallos de renderizado)
+        const fullPersonaRes = await client.query(`
+            SELECT 
+                p.nombres, p.apellidos, p.telefono,
+                p.fecha_registro, p.mesa,
+                s.nombre AS sector_nombre,
+                l_p.nombres || ' ' || l_p.apellidos AS lider_nombre
+            FROM personas p
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
+            LEFT JOIN asignaciones a ON p.persona_id = a.persona_id
+            LEFT JOIN lideres l ON a.lider_id = l.lider_id
+            LEFT JOIN personas l_p ON l.persona_id = l_p.persona_id
+            WHERE p.persona_id = $1
+            ORDER BY a.fecha_asignacion DESC
+            LIMIT 1
+        `, [nuevaPersona.persona_id]);
+
+        if (fullPersonaRes.rows.length === 0) {
+            console.error("[ERROR] No se pudo recuperar la persona recién creada con JOINs:", nuevaPersona.persona_id);
+        }
+
         res.status(201).json({
             ok: true,
             data: {
-                persona: nuevaPersona,
-                asignacion: nuevaAsignacion
-            }
+                ...nuevaPersona,
+                sector_nombre: fullPersonaRes.rows[0]?.sector_nombre || 'Centro no definido',
+                lider_nombre: fullPersonaRes.rows[0]?.lider_nombre || 'Sin líder asignado',
+                // Asegurar que nombres y apellidos estén presentes para evitar el crash del frontend
+                nombres: nuevaPersona.nombres || nombres,
+                apellidos: nuevaPersona.apellidos || apellidos,
+                telefono: nuevaPersona.telefono || telefono,
+                fecha_registro: nuevaPersona.fecha_registro || new Date().toISOString()
+            },
+            message: 'Registro creado y asignado exitosamente.'
         });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -510,103 +538,108 @@ router.post('/registro', authenticate, async (req, res, next) => {
 
 // GET /lideres-resumen
 router.get('/lideres-resumen', authenticate, async (req, res, next) => {
+    console.log('[DEBUG /lideres-resumen] User State:', {
+        email: req.user.email,
+        rol: req.user.rol_nombre,
+        candidato_id: req.user.candidato_id,
+        lider_id: req.user.lider_id
+    });
     try {
         const { search, sector, estado, nivel, page = 1, pageSize = 10 } = req.query;
+        const offset = (Math.max(1, parseInt(page, 10)) - 1) * parseInt(pageSize, 10);
 
-        const offset = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
-
-        // basePath contains only FROM + JOINs + WHERE (no SELECT) so it can be
-        // reused by both the count query and the data query.
-        let basePath = `
-            FROM lideres l
-            JOIN personas p ON l.persona_id = p.persona_id
-            LEFT JOIN sectores s ON p.sector_id = s.sector_id
-            JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
-            JOIN nivel_lider nl ON l.nivel_lider_id = nl.nivel_lider_id
-            LEFT JOIN (
-                asignaciones a
-                JOIN estado_asignacion ea ON a.estado_asignacion_id = ea.estado_asignacion_id AND ea.nombre = 'Activa'
-            ) ON l.lider_id = a.lider_id
-            WHERE 1=1
-        `;
-
+        // --- SCOPE & CANDIDATO ---
+        const cid = await getCandidatoId(req); // null para Super Admin
+        const scope = await buildLiderScope(req); // cláusualas de jerarquía
+        
+        // Base query conditions
+        let whereClause = 'WHERE 1=1';
         let values = [];
         let paramCount = 1;
 
-        // ── Candidato Scope ───────────────────────────────────────────────────
-        const candidatoId = await getCandidatoId(req);
-        if (candidatoId) {
-            basePath += ` AND l.candidato_id = $${paramCount}`;
-            values.push(candidatoId);
+        if (cid) {
+            whereClause += ` AND l.candidato_id = $${paramCount}`;
+            values.push(cid);
             paramCount++;
         }
 
-        // ── RBAC Scope ───────────────────────────────────────────────────────
-        const scope = await buildLiderScope(req, values, paramCount);
-        basePath += scope.scopeClause;
-        values = scope.values;
-        paramCount = scope.paramCount;
+        if (scope.scopeClause) {
+            // Unimos la cláusula del scope (ej. AND l.lider_id = ANY($2))
+            // Ojo: buildLiderScope asume que empieza desde paramCount 1 si no se le pasa nada.
+            // Para evitar errores de parámetros, regeneramos el scope pasando paramCount actual.
+            const fixedScope = await buildLiderScope(req, values, paramCount);
+            whereClause += fixedScope.scopeClause;
+            values = fixedScope.values;
+            paramCount = fixedScope.paramCount;
+        }
 
-        if (search) {
-            basePath += ` AND (p.nombres ILIKE $${paramCount} OR p.apellidos ILIKE $${paramCount} OR p.telefono ILIKE $${paramCount})`;
-            values.push(`%${search}%`);
+        // --- FILTERS ---
+        if (search && search.trim()) {
+            whereClause += ` AND (p.nombres ILIKE $${paramCount} OR p.apellidos ILIKE $${paramCount} OR p.telefono ILIKE $${paramCount})`;
+            values.push(`%${search.trim()}%`);
             paramCount++;
         }
         if (sector) {
-            basePath += ` AND s.sector_id = $${paramCount}`;
+            whereClause += ` AND (p.sector_id = $${paramCount} OR s.sector_id = $${paramCount})`;
             values.push(sector);
             paramCount++;
         }
         if (estado) {
-            basePath += ` AND el.estado_lider_id = $${paramCount}`;
+            whereClause += ` AND l.estado_lider_id = $${paramCount}`;
             values.push(estado);
             paramCount++;
         }
         if (nivel) {
-            basePath += ` AND nl.nivel_lider_id = $${paramCount}`;
+            whereClause += ` AND l.nivel_lider_id = $${paramCount}`;
             values.push(nivel);
             paramCount++;
         }
 
-        const countQuery = `SELECT COUNT(DISTINCT l.lider_id) ${basePath}`;
-        const countResult = await pool.query(countQuery, values);
-        const total = parseInt(countResult.rows[0].count, 10);
+        const countQuery = `
+            SELECT COUNT(DISTINCT l.lider_id) as total
+            FROM lideres l
+            JOIN personas p ON l.persona_id = p.persona_id
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
+            ${whereClause}
+        `;
+        const countRes = await pool.query(countQuery, values);
+        const total = parseInt(countRes.rows[0].total, 10);
 
         const dataQuery = `
             SELECT
-                l.lider_id,
-                l.lider_padre_id,
-                p.nombres,
-                p.apellidos,
-                p.nombres || ' ' || p.apellidos AS nombre_completo,
-                p.telefono,
-                p.cedula,
-                s.sector_id,
-                s.nombre AS sector_nombre,
-                el.estado_lider_id,
-                nl.nivel_lider_id,
-                l.meta_cantidad,
-                COUNT(a.asignacion_id) as total_reclutados,
-                CASE
-                    WHEN l.meta_cantidad > 0 THEN ROUND((COUNT(a.asignacion_id)::numeric / l.meta_cantidad::numeric) * 100, 2)
-                    ELSE 0
-                END AS porcentaje_cumplimiento,
-                el.nombre AS estado_nombre,
-                nl.nombre AS nivel_nombre
-            ${basePath}
-            GROUP BY
-                l.lider_id, l.lider_padre_id, p.nombres, p.apellidos, p.telefono, p.cedula,
-                s.sector_id, s.nombre, el.estado_lider_id, el.nombre, nl.nivel_lider_id, nl.nombre, l.meta_cantidad
+                l.lider_id, l.lider_padre_id, l.meta_cantidad, l.codigo_lider,
+                p.nombres, p.apellidos, p.nombres || ' ' || p.apellidos AS nombre_completo,
+                p.telefono, p.cedula, s.nombre AS sector_nombre, s.sector_id,
+                COALESCE(el.nombre, 'Desconocido') AS estado_nombre, el.estado_lider_id,
+                COALESCE(nl.nombre, 'Sin Nivel') AS nivel_nombre, nl.nivel_lider_id,
+                (SELECT COUNT(*) FROM asignaciones a2 
+                 JOIN estado_asignacion ea2 ON a2.estado_asignacion_id = ea2.estado_asignacion_id 
+                 WHERE a2.lider_id = l.lider_id AND ea2.nombre = 'Activa') as total_reclutados
+            FROM lideres l
+            JOIN personas p ON l.persona_id = p.persona_id
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
+            LEFT JOIN estado_lider el ON l.estado_lider_id = el.estado_lider_id
+            LEFT JOIN nivel_lider nl ON l.nivel_lider_id = nl.nivel_lider_id
+            ${whereClause}
             ORDER BY total_reclutados DESC
             LIMIT $${paramCount} OFFSET $${paramCount + 1}
         `;
-
+        
         const dataValues = [...values, parseInt(pageSize, 10), offset];
         const result = await pool.query(dataQuery, dataValues);
 
+        // Attach calculated field (since we did it in subquery for simplicity/safety)
+        const finalRows = result.rows.map(r => ({
+            ...r,
+            total_reclutados: parseInt(r.total_reclutados || 0, 10),
+            porcentaje_cumplimiento: r.meta_cantidad > 0 
+                ? Math.round((parseInt(r.total_reclutados || 0, 10) / r.meta_cantidad) * 100) 
+                : 0
+        }));
+
         res.json({
             ok: true,
-            data: result.rows,
+            data: finalRows,
             pagination: {
                 total,
                 page: parseInt(page, 10),
@@ -1047,8 +1080,215 @@ router.put('/lideres/:id', authenticate, async (req, res) => {
   }
 });
 
+// DELETE /lideres/:id — Solo Super Admin
+router.delete('/lideres/:id', authenticate, async (req, res) => {
+    // 1. Verificar Super Admin
+    const callerCandidatoId = req.user?.candidato_id;
+    const callerEmail = req.user?.email;
+    const isSuperAdminCaller =
+        callerCandidatoId === SUPER_ADMIN_CANDIDATO_ID ||
+        callerEmail === 'ejguerrero@smarttestingrd.com';
+
+    if (!isSuperAdminCaller) {
+        return res.status(403).json({ ok: false, message: 'Acceso denegado. Solo Super Admin puede eliminar líderes.' });
+    }
+
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('SET search_path TO partido360');
+
+        // 2. Obtener persona_id del líder
+        const liderRes = await client.query(
+            'SELECT persona_id FROM lideres WHERE lider_id = $1',
+            [id]
+        );
+        if (liderRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ ok: false, message: 'Líder no encontrado.' });
+        }
+        const personaId = liderRes.rows[0].persona_id;
+
+        // 3. Desasociar líderes hijos (evita FK violation en lider_padre_id)
+        await client.query(
+            'UPDATE lideres SET lider_padre_id = NULL WHERE lider_padre_id = $1',
+            [id]
+        );
+
+        // 4. Eliminar asignaciones del líder
+        await client.query('DELETE FROM asignaciones WHERE lider_id = $1', [id]);
+
+        // 5. Eliminar el registro de líder
+        await client.query('DELETE FROM lideres WHERE lider_id = $1', [id]);
+
+        // 6. Eliminar usuario vinculado a la persona
+        await client.query('DELETE FROM usuarios WHERE persona_id = $1', [personaId]);
+
+        // 7. Eliminar la persona
+        await client.query('DELETE FROM personas WHERE persona_id = $1', [personaId]);
+
+        await client.query('COMMIT');
+        res.json({ ok: true, message: 'Líder eliminado correctamente.' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('[DELETE /lideres/:id] Error:', err.message, '\nStack:', err.stack);
+        res.status(500).json({ ok: false, message: 'Error al eliminar el líder.', error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// GET /personas/buscar
+router.get('/personas/buscar', authenticate, async (req, res, next) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.trim().length < 2) return res.json({ ok: true, data: [] });
+
+        const cid = await getCandidatoId(req);
+        let query = `
+            SELECT persona_id, nombres, apellidos, cedula, telefono 
+            FROM personas 
+            WHERE (nombres ILIKE $1 OR apellidos ILIKE $1 OR cedula ILIKE $1 OR telefono ILIKE $1)
+        `;
+        const values = [`%${q.trim()}%`];
+        if (cid) {
+            query += ` AND candidato_id = $2`;
+            values.push(cid);
+        }
+        query += ` LIMIT 10`;
+
+        const result = await pool.query(query, values);
+        res.json({ ok: true, data: result.rows });
+    } catch (err) { next(err); }
+});
+
+// GET /personas/:id
+router.get('/personas/:id', authenticate, async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const cid = await getCandidatoId(req);
+        
+        let query = `
+            SELECT p.*, s.nombre as sector_nombre, ep.nombre as estado_nombre,
+                   f.nombre as fuente_nombre,
+                   l_p.nombres || ' ' || l_p.apellidos as lider_nombre
+            FROM personas p
+            LEFT JOIN sectores s ON p.sector_id = s.sector_id
+            LEFT JOIN estado_persona ep ON p.estado_persona_id = ep.estado_persona_id
+            LEFT JOIN (
+                asignaciones a 
+                JOIN estado_asignacion ea ON a.estado_asignacion_id = ea.estado_asignacion_id AND ea.nombre = 'Activa'
+                JOIN lideres l ON a.lider_id = l.lider_id
+                JOIN personas l_p ON l.persona_id = l_p.persona_id
+            ) ON p.persona_id = a.persona_id
+            LEFT JOIN fuentes_captacion f ON a.fuente_id = f.fuente_id
+            WHERE p.persona_id = $1
+        `;
+        const values = [id];
+        if (cid) {
+            query += ` AND p.candidato_id = $2`;
+            values.push(cid);
+        }
+
+        const result = await pool.query(query, values);
+        if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Persona no encontrada' });
+        
+        res.json({ ok: true, data: result.rows[0] });
+    } catch (err) { next(err); }
+});
+
+// PUT /personas/:id
+router.put('/personas/:id', authenticate, async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+        const cid = await getCandidatoId(req);
+
+        // Build dynamic update
+        const fields = [];
+        const values = [];
+        let i = 1;
+        for (const [key, value] of Object.entries(updates)) {
+            // Guard against system fields
+            if (['persona_id', 'candidato_id', 'fecha_registro'].includes(key)) continue;
+            fields.push(`${key} = $${i++}`);
+            values.push(value);
+        }
+
+        if (fields.length === 0) return res.status(400).json({ ok: false, message: 'No hay campos para actualizar' });
+
+        values.push(id);
+        let q = `UPDATE personas SET ${fields.join(', ')} WHERE persona_id = $${i}`;
+        if (cid) {
+            q += ` AND candidato_id = $${i+1}`;
+            values.push(cid);
+        }
+        q += ` RETURNING *`;
+
+        const result = await pool.query(q, values);
+        if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Persona no encontrada o sin permisos' });
+        
+        res.json({ ok: true, data: result.rows[0] });
+    } catch (err) { next(err); }
+});
+
+// DELETE /personas/:id
+router.delete('/personas/:id', authenticate, async (req, res, next) => {
+    // Solo Super Admin
+    const isSuperAdminCaller =
+        req.user?.candidato_id === SUPER_ADMIN_CANDIDATO_ID ||
+        req.user?.email === 'ejguerrero@smarttestingrd.com';
+
+    if (!isSuperAdminCaller) {
+        return res.status(403).json({ ok: false, message: 'Acceso denegado. Solo Super Admin puede borrar registros permanentemente.' });
+    }
+
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Eliminar bitacora_reclutamiento
+        await client.query('DELETE FROM bitacora_reclutamiento WHERE persona_id = $1', [id]);
+        
+        // 2. Eliminar asignaciones (para que no bloqueen)
+        await client.query('DELETE FROM asignaciones WHERE persona_id = $1', [id]);
+
+        // 3. Si es un líder, limpiar sus huellas
+        const ldrRes = await client.query('SELECT lider_id FROM lideres WHERE persona_id = $1', [id]);
+        if (ldrRes.rows.length > 0) {
+            const lid = ldrRes.rows[0].lider_id;
+            await client.query('UPDATE lideres SET lider_padre_id = NULL WHERE lider_padre_id = $1', [lid]);
+            await client.query('DELETE FROM asignaciones WHERE lider_id = $1', [lid]); // borra a sus reclutados (desvincula)
+            await client.query('DELETE FROM lideres WHERE lider_id = $1', [lid]);
+        }
+
+        // 4. Eliminar usuarios
+        await client.query('DELETE FROM usuarios WHERE persona_id = $1', [id]);
+
+        // 5. Finalmente eliminar la persona
+        const result = await client.query('DELETE FROM personas WHERE persona_id = $1 RETURNING *', [id]);
+        
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ ok: false, message: 'Persona no encontrada' });
+        }
+
+        await client.query('COMMIT');
+        res.json({ ok: true, message: 'Registro eliminado permanentemente con éxito.' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('[DELETE /personas/:id] Error:', err.message);
+        res.status(500).json({ ok: false, message: 'Error al eliminar el registro.' });
+    } finally {
+        client.release();
+    }
+});
+
+
 // POST /lideres
-router.post('/lideres', async (req, res, next) => {
+router.post('/lideres', authenticate, async (req, res, next) => {
     const client = await pool.connect();
     try {
         const { persona_id, meta_cantidad, nivel_lider_id, estado_lider_id, lider_padre_id } = req.body;

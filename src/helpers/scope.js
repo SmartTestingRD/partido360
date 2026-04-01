@@ -8,6 +8,8 @@
  */
 const { pool } = require('../config/db');
 
+const SUPER_ADMIN_CANDIDATO_ID = '00000000-0000-0000-0000-000000000001';
+
 const LIDER_TREE_CTE = `
 WITH RECURSIVE lider_tree AS (
     SELECT lider_id
@@ -51,7 +53,7 @@ async function buildLiderScope(req, values = [], paramCount = 1) {
     let scopeClause = "";
 
     // 1. Filtrar por Candidato (todos los roles excepto Super Admin)
-    if (candidato_id) {
+    if (candidato_id && candidato_id !== SUPER_ADMIN_CANDIDATO_ID) {
         scopeClause += ` AND l.candidato_id = $${paramCount}`;
         values.push(candidato_id);
         paramCount++;
