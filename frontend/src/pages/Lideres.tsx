@@ -110,6 +110,7 @@ const Lideres = () => {
     // Modal — Delete confirm (Solo Super Admin)
     const [deleteConfirmLider, setDeleteConfirmLider] = useState<LiderResumen | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
 
     // Catalogs
@@ -124,7 +125,6 @@ const Lideres = () => {
         setError(null);
         try {
             const res = await getLideresResumen({ search, sector, nivel, page, pageSize });
-            console.log('[DEBUG Lideres.tsx] API Response:', res);
             setLideres(res.data);
             setTotal(res.total || 0);
         } catch (err) {
@@ -132,7 +132,6 @@ const Lideres = () => {
             setError('No se pudieron cargar los líderes. Por favor, intenta nuevamente.');
         } finally {
             setLoading(false);
-            console.log('[DEBUG Lideres.tsx] Current Lideres state:', lideres);
         }
     };
 
@@ -192,12 +191,15 @@ const Lideres = () => {
         }
 
         try {
+            setIsTogglingStatus(true);
             await updateLider(liderId, { estado_lider_id: targetState.estado_lider_id });
             addToast(`Líder ${isActivo ? 'inactivado' : 'activado'} correctamente.`, 'success');
             fetchLideres();
         } catch (err) {
             console.error('Error updating leader status', err);
             addToast('Error al cambiar el estado del líder.', 'error');
+        } finally {
+            setIsTogglingStatus(false);
         }
     };
 
@@ -422,11 +424,14 @@ const Lideres = () => {
                 {/* Table / Cards */}
                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden">
                     {loading ? (
-                        <div className="p-10 flex justify-center items-center">
-                            <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
+                            <div className="relative">
+                                <div className="h-16 w-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary animate-pulse">social_leaderboard</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 animate-pulse">Cargando líderes...</p>
                         </div>
                     ) : lideres.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 bg-card-light dark:bg-card-dark rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
@@ -755,9 +760,11 @@ const Lideres = () => {
                             </button>
                             <button
                                 onClick={() => executeToggle(confirmPending.liderId, confirmPending.isActivo)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-500/25"
+                                disabled={isTogglingStatus}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-500/25 disabled:opacity-50 flex items-center gap-2"
                             >
-                                Sí, inactivar
+                                {isTogglingStatus && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                {isTogglingStatus ? 'Procesando...' : 'Sí, inactivar'}
                             </button>
                         </div>
                     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, getEstadosPersona, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
 import ConfirmModal from '../components/ConfirmModal';
 
 import { API_URL } from '../api/apiService';
@@ -59,7 +59,7 @@ const Personas = () => {
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     // Global Feedback State
-    const [feedback, setFeedback] = useState<{ show: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info'; onConfirm?: () => void; showCancel?: boolean } | null>(null);
+    const [feedback, setFeedback] = useState<{ show: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info'; onConfirm?: () => void; showCancel?: boolean; loading?: boolean } | null>(null);
     const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' } | null>(null);
 
     const showMessage = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -176,31 +176,35 @@ const Personas = () => {
     };
 
     const handleToggleStatus = async (persona: Persona) => {
-        const currentEstado = persona.estado_nombre;
-        const targetEstado = currentEstado === 'Activo' ? 'Inactivo' : 'Activo';
+        const currentEstado = persona.estado_nombre || '';
+        const targetEstado = currentEstado.toLowerCase() === 'activo' ? 'Inactivo' : 'Activo';
         
         askConfirm(
             'Confirmar Cambio de Estado',
             `¿Estás seguro de que deseas cambiar el estado de ${persona.nombres} a ${targetEstado}?`,
             async () => {
-                setFeedback(null); // Close confirm modal
+                setFeedback(prev => prev ? { ...prev, loading: true } : null);
                 try {
-                    const estadosRes = await axios.get(`${API_URL}/estados-persona`);
-                    const estados = estadosRes.data.data;
-                    const targetStateObj = estados.find((e: any) => e.nombre === targetEstado);
+                    // Use the helper from apiService
+                    const estados = await getEstadosPersona();
+                    const targetStateObj = estados.find((e: any) => 
+                        (e.nombre || '').toLowerCase() === targetEstado.toLowerCase()
+                    );
                     
-                    if (targetStateObj) {
-                        await axios.put(`${API_URL}/personas/${persona.persona_id}`, { 
-                            estado_persona_id: targetStateObj.estado_persona_id 
-                        });
+                    if (targetStateObj && targetStateObj.estado_persona_id) {
+                        const payload = { estado_persona_id: targetStateObj.estado_persona_id };
+                        
+                        await axios.put(`${API_URL}/personas/${persona.persona_id}`, payload);
                         showToast(`Estado actualizado a ${targetEstado}`, 'success');
                         fetchPersonasData();
                     } else {
-                        showMessage('Error de Catálogo', `No se encontró el estado "${targetEstado}" en el sistema.`, 'error');
+                        console.error("Estado coincidente no encontrado:", { targetEstado, available: estados });
+                        showMessage('Error de Catálogo', `No se pudo encontrar el ID para el estado "${targetEstado}".`, 'error');
                     }
-                } catch (err) {
+                } catch (err: any) {
                     console.error("Error toggling status:", err);
-                    showMessage('Error de Operación', 'No se pudo actualizar el estado. Verifica tu conexión.', 'error');
+                    const errorMsg = err.response?.data?.message || 'No se pudo actualizar el estado. Verifica tu conexión.';
+                    showMessage('Error de Operación', errorMsg, 'error');
                 }
             }
         );
@@ -223,6 +227,7 @@ const Personas = () => {
             showMessage('Error al Guardar', err.response?.data?.message || 'No se pudieron guardar los cambios.', 'error');
         } finally {
             setIsSavingEdit(false);
+            setFeedback(null);
         }
     };
 
@@ -331,11 +336,14 @@ const Personas = () => {
                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col relative min-h-[500px]">
 
                     {loading ? (
-                        <div className="p-8 flex items-center justify-center h-full">
-                            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
+                            <div className="relative">
+                                <div className="h-16 w-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary animate-pulse">groups</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 animate-pulse">Cargando simpatizantes...</p>
                         </div>
                     ) : personas.length === 0 ? (
                         <div className="flex-1 flex flex-col flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -575,12 +583,6 @@ const Personas = () => {
                                 <p className="text-xs text-gray-500">ID: #{personaDetalle.persona.persona_id.substring(0, 8)}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                                {!personaDetalle.persona.is_lider && (
-                                    <button onClick={() => setConversionModalOpen(true)} className="hidden md:flex items-center gap-2 bg-primary hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm">
-                                        <span className="material-symbols-outlined text-[16px]">stars</span>
-                                        <span>Convertir a Líder</span>
-                                    </button>
-                                )}
                                 <button onClick={() => setSelectedPersonaId(null)} className="text-gray-400 hover:text-gray-600 transition-colors ml-2">
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
@@ -637,9 +639,6 @@ const Personas = () => {
                                         <p className="font-bold text-gray-900 dark:text-white">{personaDetalle.asignacion_activa?.lider_nombre || 'Sin asignar'}</p>
                                         {personaDetalle.asignacion_activa && <p className="text-xs text-gray-500">Desde: {new Date(personaDetalle.asignacion_activa.fecha_asignacion).toLocaleDateString()}</p>}
                                     </div>
-                                    <button className="text-gray-400 hover:text-primary">
-                                        <span className="material-symbols-outlined">edit</span>
-                                    </button>
                                 </div>
                             </div>
 
@@ -666,33 +665,17 @@ const Personas = () => {
                                     <span className="material-symbols-outlined text-base">notes</span>
                                     Notas
                                 </h4>
-                                <textarea className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-card-dark text-sm focus:border-primary focus:ring-primary h-24 resize-none" placeholder="Agregar una nota interna..." defaultValue={personaDetalle.persona.notas || ''}></textarea>
-                                <button className="mt-2 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded transition-colors font-medium">
-                                    Guardar Nota
-                                </button>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-700 min-h-[80px]">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap italic">
+                                        {personaDetalle.persona.notas || 'No hay notas registradas para esta persona.'}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
-                            <button className="flex-1 bg-white dark:bg-card-dark border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                Editar Perfil
-                            </button>
-                            <button className="flex-1 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors">
-                                Contactar
-                            </button>
                         </div>
                     </div>
                 ) : null}
             </div>
 
-            {/* Mobile Convert Button within Drawer */}
-            {personaDetalle && !personaDetalle.persona.is_lider && selectedPersonaId && (
-                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-card-dark/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 z-50">
-                    <button onClick={() => setConversionModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/25 transition-all">
-                        <span className="material-symbols-outlined text-xl">stars</span>
-                        <span>Convertir en Líder</span>
-                    </button>
-                </div>
-            )}
 
             {/* Conversion Modal */}
             {isConversionModalOpen && personaDetalle && (
@@ -817,23 +800,17 @@ const Personas = () => {
                             </div>
 
                             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100 dark:border-gray-700">
-                                <button
-                                    onClick={() => setConfirmConvertOpen(true)}
-                                    disabled={isConverting || !convertSectorId || !nivelLiderId || !estadoLiderId}
-                                    className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
-                                >
-                                    {isConverting ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Guardando...
-                                        </>
-                                    ) : (
-                                        "Confirmar y Convertir"
-                                    )}
-                                </button>
+                                    <button
+                                        onClick={() => setConfirmConvertOpen(true)}
+                                        disabled={isConverting || !convertSectorId || !nivelLiderId || !estadoLiderId}
+                                        className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
+                                    >
+                                        {isConverting ? (
+                                            <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span><span>Convirtiendo...</span></>
+                                        ) : (
+                                            "Confirmar y Convertir"
+                                        )}
+                                    </button>
                                 <button
                                     onClick={() => setConversionModalOpen(false)}
                                     disabled={isConverting}
@@ -864,6 +841,7 @@ const Personas = () => {
                 confirmColor="bg-red-600 hover:bg-red-700"
                 onConfirm={handleDeletePersona}
                 onCancel={() => setDeleteModalOpen(false)}
+                isLoading={isDeleting}
             />
 
             {editModalOpen && personaToEdit && (
@@ -914,7 +892,8 @@ const Personas = () => {
                                     <button type="button" onClick={() => setEditModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors">
                                         Cancelar
                                     </button>
-                                    <button type="submit" disabled={isSavingEdit} className="flex-1 px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                                    <button type="submit" disabled={isSavingEdit} className="flex-1 px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                        {isSavingEdit && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
                                         {isSavingEdit ? 'Guardando...' : 'Guardar Cambios'}
                                     </button>
                                 </div>
@@ -957,14 +936,16 @@ const Personas = () => {
                                         setFeedback(null);
                                     }
                                 }} 
-                                className={`px-6 py-2 rounded-xl text-white font-medium shadow-lg transition-all active:scale-95 ${
+                                disabled={feedback.loading}
+                                className={`px-6 py-2 rounded-xl text-white font-medium shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
                                     feedback.type === 'success' ? 'bg-green-600 hover:bg-green-700 shadow-green-500/20' :
                                     feedback.type === 'error' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' :
                                     feedback.type === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' :
                                     'bg-primary hover:bg-blue-700 shadow-blue-500/20'
-                                }`}
+                                } disabled:opacity-75`}
                             >
-                                {feedback.showCancel ? 'Confirmar' : 'Aceptar'}
+                                {feedback.loading && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                {feedback.showCancel ? (feedback.loading ? 'Cambiando...' : 'Confirmar') : 'Aceptar'}
                             </button>
                         </div>
                     </div>

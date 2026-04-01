@@ -1198,40 +1198,7 @@ router.get('/personas/:id', authenticate, async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-// PUT /personas/:id
-router.put('/personas/:id', authenticate, async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        const updates = req.body;
-        const cid = await getCandidatoId(req);
-
-        // Build dynamic update
-        const fields = [];
-        const values = [];
-        let i = 1;
-        for (const [key, value] of Object.entries(updates)) {
-            // Guard against system fields
-            if (['persona_id', 'candidato_id', 'fecha_registro'].includes(key)) continue;
-            fields.push(`${key} = $${i++}`);
-            values.push(value);
-        }
-
-        if (fields.length === 0) return res.status(400).json({ ok: false, message: 'No hay campos para actualizar' });
-
-        values.push(id);
-        let q = `UPDATE personas SET ${fields.join(', ')} WHERE persona_id = $${i}`;
-        if (cid) {
-            q += ` AND candidato_id = $${i+1}`;
-            values.push(cid);
-        }
-        q += ` RETURNING *`;
-
-        const result = await pool.query(q, values);
-        if (result.rows.length === 0) return res.status(404).json({ ok: false, message: 'Persona no encontrada o sin permisos' });
-        
-        res.json({ ok: true, data: result.rows[0] });
-    } catch (err) { next(err); }
-});
+// La ruta PUT /personas/:id ha sido consolidada más abajo (línea ~2000) por temas de control RBAC y concurrencia.
 
 // DELETE /personas/:id
 router.delete('/personas/:id', authenticate, async (req, res, next) => {
@@ -2007,7 +1974,8 @@ router.put('/personas/:id', authenticate, async (req, res) => {
         }
 
         // ── Construir UPDATE dinámico ─────────────────────────────────────
-        const { nombres, apellidos, cedula, telefono, email, sector_id, mesa, notas } = req.body;
+        const { nombres, apellidos, cedula, telefono, email, sector_id, mesa, notas, estado_persona_id } = req.body;
+        
         const updates = [];
         const values = [];
         let idx = 1;
@@ -2020,6 +1988,7 @@ router.put('/personas/:id', authenticate, async (req, res) => {
         if (sector_id  !== undefined) { updates.push(`sector_id = $${idx++}`);  values.push(sector_id || null); }
         if (mesa       !== undefined) { updates.push(`mesa = $${idx++}`);       values.push(mesa?.trim() || null); }
         if (notas      !== undefined) { updates.push(`notas = $${idx++}`);      values.push(notas?.trim() || null); }
+        if (estado_persona_id !== undefined) { updates.push(`estado_persona_id = $${idx++}`); values.push(estado_persona_id); }
 
         if (updates.length === 0) {
             return res.status(400).json({ ok: false, message: 'No se enviaron campos para actualizar' });
