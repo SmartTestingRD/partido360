@@ -28,6 +28,7 @@ const corsOptions = {
     // Permitir cualquier subdominio de vercel.app y political360.online
     const allowedPatterns = [
       /\.vercel\.app$/,
+      /\.netlify\.app$/,
       /\.political360\.online$/,
       /political360\.online$/,
     ];
