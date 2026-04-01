@@ -186,9 +186,19 @@ const RegistrarPersona = () => {
             const result = await postRegistro(payload);
             setSuccessMsg(result.message || 'Registro creado y asignado exitosamente.');
 
-            // Refetch ultimo registro to show the one we just made
-            const nuevoRegistro = await getUltimoRegistro();
-            setUltimoRegistro(nuevoRegistro);
+            // Actualización inmediata con datos locales (Omnipresente y fiable)
+            const sectorObj = sectores.find(s => s.sector_id === formData.sector);
+            const liderObj = lideres.find(l => l.lider_id === formData.lider);
+            
+            setUltimoRegistro({
+                nombres: formData.nombres,
+                apellidos: formData.apellidos,
+                telefono: formData.telefono,
+                fecha_registro: new Date().toISOString(),
+                mesa: formData.mesa || null,
+                sector_nombre: sectorObj ? sectorObj.nombre : 'Sin definir',
+                lider_nombre: liderObj ? liderObj.nombre_completo : 'Sin líder asignado'
+            });
 
             setTimeout(() => handleClear(), 3000); // Clear after 3 seconds
         } catch (err: unknown) {
@@ -507,10 +517,10 @@ const RegistrarPersona = () => {
                             <>
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="h-14 w-14 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-xl shadow-inner border border-purple-200 dark:border-purple-800">
-                                        {ultimoRegistro.nombres.charAt(0)}{ultimoRegistro.apellidos.charAt(0)}
+                                        {(ultimoRegistro.nombres || '').charAt(0)}{(ultimoRegistro.apellidos || '').charAt(0)}
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{ultimoRegistro.nombres} {ultimoRegistro.apellidos}</p>
+                                        <p className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{(ultimoRegistro.nombres || '')} {(ultimoRegistro.apellidos || '')}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
                                             <span className="material-symbols-outlined text-[14px]">schedule</span>
                                             {new Date(ultimoRegistro.fecha_registro).toLocaleDateString()}

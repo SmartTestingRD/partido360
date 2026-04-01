@@ -5,6 +5,7 @@ import {
     getEstadosLider,
     getNivelesLider,
     getLideres,
+    getCandidatos,
     createLiderFull,
     createLiderHierarchy,
     buscarPersonas,
@@ -12,7 +13,8 @@ import {
     EstadoLider,
     NivelLider,
     Lider,
-    PersonaBusqueda
+    PersonaBusqueda,
+    Candidato
 } from '../api/apiService';
 
 interface CreateLiderModalProps {
@@ -43,6 +45,8 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
     const [estadosLider, setEstadosLider] = useState<EstadoLider[]>([]);
     const [nivelesLider, setNivelesLider] = useState<NivelLider[]>([]);
     const [todoLideres, setTodoLideres] = useState<Lider[]>([]);
+    const [candidatos, setCandidatos] = useState<Candidato[]>([]);
+    const [selectedCandidatoId, setSelectedCandidatoId] = useState<string>('');
 
     // Search
     const [busquedaQuery, setBusquedaQuery] = useState('');
@@ -69,12 +73,21 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
 
     const fetchCatalogs = async () => {
         try {
-            const [s, e, n, all] = await Promise.all([getSectores(), getEstadosLider(), getNivelesLider(), getLideres()]);
+            const [s, e, n, all, cands] = await Promise.all([
+                getSectores(), getEstadosLider(), getNivelesLider(), getLideres(),
+                isAdmin ? getCandidatos() : Promise.resolve([])
+            ]);
             setSectores(s);
             setEstadosLider(e);
             setNivelesLider(n);
             setTodoLideres(all);
-            // Set defaults únicamente si el usuario es Admin o elige manualmente
+            setCandidatos(cands);
+
+            // Preseleccionar si hay exactamente un candidato
+            if (isAdmin && cands.length === 1) {
+                setSelectedCandidatoId(cands[0].candidato_id);
+            }
+
             const defaultNivel = n.find(nv => nv.nombre.toLowerCase() !== 'cabeza') || n[0];
             const activo = e.find(ev => ev.nombre.toLowerCase() === 'activo') || e[0];
 
@@ -98,6 +111,7 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
         setBusquedaResultados([]);
         setPersonaSeleccionada(null);
         setCreacionResult(null);
+        setSelectedCandidatoId(candidatos.length === 1 ? candidatos[0].candidato_id : '');
         setForm({
             persona: { nombres: '', apellidos: '', cedula: '', telefono: '', email: '', sector_id: '', mesa: '', notas: '' },
             lider: { meta_cantidad: 10, nivel_lider_id: nivelesLider[0]?.nivel_lider_id || '', estado_lider_id: estadosLider.find(e => e.nombre === 'Activo')?.estado_lider_id || '', lider_padre_id: '', codigo_lider: '' },
@@ -157,6 +171,11 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
             if (!persona.sector_id) { addToast('Debe seleccionar un centro de votación.', 'error'); return; }
         }
 
+        // Candidato obligatorio para Admin
+        if (isAdmin && !selectedCandidatoId) {
+            addToast('Debes seleccionar un candidato.', 'error'); return;
+        }
+
         if (!isLiderOrCoordinador) {
             if (!lider.nivel_lider_id) { addToast('Debe seleccionar un nivel jerárquico.', 'error'); return; }
             if (!lider.estado_lider_id) { addToast('Debe seleccionar un estado para el líder.', 'error'); return; }
@@ -182,6 +201,8 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
         try {
             const payload: any = {
                 modo: modo,
+                // Admin envía candidato_id explícito; otros roles lo infiere el backend
+                ...(isAdmin && selectedCandidatoId ? { candidato_id: selectedCandidatoId } : {}),
                 lider: isLiderOrCoordinador ? undefined : {
                     meta_cantidad: lider.meta_cantidad,
                     nivel_lider_id: lider.nivel_lider_id,
@@ -344,6 +365,34 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                             </div>
 
                             <div className="p-6 space-y-8">
+                                {/* SECCIÓN 0 — Candidato (solo visible para Admin) */}
+                                {isAdmin && (
+                                    <section className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-lg">how_to_vote</span>
+                                            <label className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                                                Candidato <span className="text-red-500">*</span>
+                                            </label>
+                                        </div>
+                                        <select
+                                            className={`w-full rounded-lg px-3 py-2 text-sm border ${!selectedCandidatoId ? 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'} text-gray-900 dark:text-white focus:ring-primary focus:border-primary transition-shadow`}
+                                            value={selectedCandidatoId}
+                                            onChange={e => setSelectedCandidatoId(e.target.value)}
+                                        >
+                                            <option value="">— Seleccionar candidato —</option>
+                                            {candidatos.map(c => (
+                                                <option key={c.candidato_id} value={c.candidato_id}>{c.nombre}</option>
+                                            ))}
+                                        </select>
+                                        {!selectedCandidatoId && (
+                                            <p className="mt-2 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                                                <span className="material-symbols-outlined text-sm">warning</span>
+                                                Selecciona el candidato al que pertenecerá este líder
+                                            </p>
+                                        )}
+                                    </section>
+                                )}
+
                                 {/* SECCIÓN A — Persona */}
                                 <section>
                                     <div className="flex items-center gap-2 mb-4">
@@ -560,8 +609,8 @@ const CreateLiderModal = ({ isOpen, onClose, onSuccess, addToast }: CreateLiderM
                                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                                 Cancelar
                             </button>
-                            <button onClick={handleSave} disabled={isSaving}
-                                className="px-6 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-700 rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 transition-all flex items-center gap-2 active:scale-95">
+                            <button onClick={handleSave} disabled={isSaving || (isAdmin && !selectedCandidatoId)}
+                                className="px-6 py-2 text-sm font-bold text-white bg-primary hover:bg-blue-700 rounded-lg shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 active:scale-95">
                                 {isSaving ? (
                                     <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span><span>Guardando...</span></>
                                 ) : (

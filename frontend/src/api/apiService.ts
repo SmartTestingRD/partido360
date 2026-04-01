@@ -130,6 +130,7 @@ export interface Persona {
     sector_nombre: string | null;
     lider_nombre: string | null;
     fuente_nombre: string | null;
+    estado_persona_id: string | null;
     estado_nombre: string | null;
     fecha_registro: string;
     is_lider?: boolean;
@@ -262,6 +263,18 @@ export const getEstadosPersona = async (): Promise<EstadoPersona[]> => {
     return response.data.data;
 };
 
+export interface Candidato {
+    candidato_id: string;
+    nombre: string;
+    descripcion?: string | null;
+    activo?: boolean;
+}
+
+export const getCandidatos = async (): Promise<Candidato[]> => {
+    const response = await axios.get(`${API_URL}/candidatos`);
+    return response.data.data;
+};
+
 export interface NivelLider {
     nivel_lider_id: string;
     nombre: string;
@@ -375,6 +388,10 @@ export const createLiderHierarchy = async (payload: CreateLiderHierarchyPayload)
 export const updateLider = async (id: string, data: Partial<LiderFormPayload>): Promise<any> => {
     const response = await axios.put(`${API_URL}/lideres/${id}`, data);
     return response.data;
+};
+
+export const deleteLider = async (id: string): Promise<void> => {
+    await axios.delete(`${API_URL}/lideres/${id}`);
 };
 
 export const getPersonas = async (params: { q?: string; sector_id?: string; lider_id?: string; estado_persona_id?: string; page?: number; pageSize?: number; }): Promise<PaginatedResponse<Persona>> => {

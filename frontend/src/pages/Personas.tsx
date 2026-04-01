@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, getEstadosPersona, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider, EstadoPersona } from '../api/apiService';
 import ConfirmModal from '../components/ConfirmModal';
 
 import { API_URL } from '../api/apiService';
@@ -26,6 +26,7 @@ const Personas = () => {
     const [lideres, setLideres] = useState<Lider[]>([]);
     const [nivelesLider, setNivelesLider] = useState<NivelLider[]>([]);
     const [estadosLider, setEstadosLider] = useState<EstadoLider[]>([]);
+    const [estadosPersona, setEstadosPersona] = useState<EstadoPersona[]>([]);
 
     // Drawer state
     const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
@@ -44,6 +45,37 @@ const Personas = () => {
     const [conversionSuccess, setConversionSuccess] = useState<string | null>(null);
     const [conversionError, setConversionError] = useState<string | null>(null);
 
+    // Delete state
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [personaToDelete, setPersonaToDelete] = useState<Persona | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const SUPER_ADMIN_CAND_ID = '00000000-0000-0000-0000-000000000001';
+    const isSuperAdmin = currentUser.candidato_id === SUPER_ADMIN_CAND_ID || currentUser.email === 'ejguerrero@smarttestingrd.com';
+
+    // Edit state
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [personaToEdit, setPersonaToEdit] = useState<Persona | null>(null);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+    // Global Feedback State
+    const [feedback, setFeedback] = useState<{ show: boolean; title: string; message: string; type: 'success' | 'error' | 'warning' | 'info'; onConfirm?: () => void; showCancel?: boolean; loading?: boolean } | null>(null);
+    const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' } | null>(null);
+
+    const showMessage = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setFeedback({ show: true, title, message, type });
+    };
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ show: true, message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
+
+    const askConfirm = (title: string, message: string, onConfirm: () => void) => {
+        setFeedback({ show: true, title, message, type: 'warning', onConfirm, showCancel: true });
+    };
+
     useEffect(() => {
         if (selectedPersonaId) {
             setLoadingDetail(true);
@@ -60,16 +92,18 @@ const Personas = () => {
         if (!localStorage.getItem('token')) return;
         const fetchCatalogos = async () => {
             try {
-                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData] = await Promise.all([
+                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData, estadosPersonaData] = await Promise.all([
                     getSectores(),
                     getLideres(),
                     getNivelesLider(),
-                    getEstadosLider()
+                    getEstadosLider(),
+                    getEstadosPersona()
                 ]);
                 setSectores(sectoresData);
                 setLideres(lideresData);
                 setNivelesLider(nivelesLiderData);
                 setEstadosLider(estadosLiderData);
+                setEstadosPersona(estadosPersonaData);
                 if (nivelesLiderData.length > 0) setNivelLiderId(nivelesLiderData[0].nivel_lider_id);
                 if (estadosLiderData.length > 0) {
                     const activeState = estadosLiderData.find(e => e.nombre === 'Activo');
@@ -141,6 +175,80 @@ const Personas = () => {
             setConversionError(msg || "Ocurrió un error al intentar convertir a líder.");
         } finally {
             setIsConverting(false);
+        }
+    };
+
+    const handleToggleStatus = (persona: Persona) => {
+        const currentEstado = (persona.estado_nombre || '').toLowerCase();
+        const targetEstadoNombre = currentEstado === 'activo' ? 'Inactivo' : 'Activo';
+
+        // Buscar el UUID del estado destino desde el catálogo ya cargado (síncrono)
+        const targetStateObj = estadosPersona.find(
+            (e) => (e.nombre || '').toLowerCase() === targetEstadoNombre.toLowerCase()
+        );
+
+        if (!targetStateObj) {
+            showMessage('Error de Catálogo', `No se encontró el estado "${targetEstadoNombre}". Recarga la página.`, 'error');
+            return;
+        }
+
+        askConfirm(
+            'Confirmar Cambio de Estado',
+            `¿Cambiar el estado de ${persona.nombres} ${persona.apellidos} a "${targetEstadoNombre}"?`,
+            async () => {
+                setFeedback(prev => prev ? { ...prev, loading: true } : null);
+                try {
+                    await axios.put(`${API_URL}/personas/${persona.persona_id}`, {
+                        estado_persona_id: targetStateObj.estado_persona_id
+                    });
+                    showToast(`Estado actualizado a ${targetEstadoNombre}`, 'success');
+                    fetchPersonasData();
+                } catch (err: any) {
+                    console.error('[handleToggleStatus] error:', err);
+                    showToast(err.response?.data?.message || 'No se pudo actualizar el estado.', 'error');
+                } finally {
+                    setFeedback(null);
+                }
+            }
+        );
+    };
+
+    const handleSaveEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!personaToEdit) return;
+        setIsSavingEdit(true);
+        try {
+            const formData = new FormData(e.currentTarget);
+            const data = Object.fromEntries(formData.entries());
+            await axios.put(`${API_URL}/personas/${personaToEdit.persona_id}`, data);
+            setEditModalOpen(false);
+            setPersonaToEdit(null);
+            showToast('Simpatizante actualizado correctamente', 'success');
+            fetchPersonasData();
+        } catch (err: any) {
+            console.error("Error saving persona:", err);
+            showMessage('Error al Guardar', err.response?.data?.message || 'No se pudieron guardar los cambios.', 'error');
+        } finally {
+            setIsSavingEdit(false);
+            setFeedback(null);
+        }
+    };
+
+
+    const handleDeletePersona = async () => {
+        if (!personaToDelete) return;
+        setIsDeleting(true);
+        try {
+            await axios.delete(`${API_URL}/personas/${personaToDelete.persona_id}`);
+            setDeleteModalOpen(false);
+            setPersonaToDelete(null);
+            showToast('Registro eliminado con éxito', 'success');
+            fetchPersonasData();
+        } catch (err: any) {
+            console.error("Error deleting persona:", err);
+            showMessage('Error al Eliminar', err.response?.data?.message || "No se pudo eliminar el registro permanentemente.", 'error');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -231,11 +339,14 @@ const Personas = () => {
                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden flex flex-col relative min-h-[500px]">
 
                     {loading ? (
-                        <div className="p-8 flex items-center justify-center h-full">
-                            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
+                            <div className="relative">
+                                <div className="h-16 w-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary animate-pulse">groups</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 animate-pulse">Cargando simpatizantes...</p>
                         </div>
                     ) : personas.length === 0 ? (
                         <div className="flex-1 flex flex-col flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -286,10 +397,34 @@ const Personas = () => {
                                                 </div>
                                             </div>
                                             <div className="pt-3 flex items-center justify-between border-t border-gray-100 dark:border-gray-700/50 mt-3">
-                                                <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1">
-                                                    <span className="material-symbols-outlined">more_horiz</span>
-                                                </button>
-                                                <button onClick={() => window.location.hash = `personas/${persona.persona_id}`} className="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors border border-blue-100 dark:border-blue-900/30">
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => { setPersonaToEdit(persona); setEditModalOpen(true); }} 
+                                                        className="text-gray-400 hover:text-blue-600 transition-colors p-2 rounded-lg" 
+                                                        title="Editar"
+                                                    >
+                                                        <span className="material-symbols-outlined">edit</span>
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleToggleStatus(persona)} 
+                                                        className={`p-2 rounded-lg transition-colors ${persona.estado_nombre === 'Activo' ? 'text-gray-400 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`}
+                                                        title={persona.estado_nombre === 'Activo' ? 'Inactivar' : 'Activar'}
+                                                    >
+                                                        <span className="material-symbols-outlined">
+                                                            {persona.estado_nombre === 'Activo' ? 'block' : 'check_circle'}
+                                                        </span>
+                                                    </button>
+                                                    {isSuperAdmin && (
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setPersonaToDelete(persona); setDeleteModalOpen(true); }} 
+                                                            className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg" 
+                                                            title="Eliminar Permanente"
+                                                        >
+                                                            <span className="material-symbols-outlined">delete</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <button onClick={() => setSelectedPersonaId(persona.persona_id)} className="text-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors border border-blue-100 dark:border-blue-900/30">
                                                     Ver Detalle
                                                 </button>
                                             </div>
@@ -356,18 +491,42 @@ const Personas = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 hidden">{new Date(persona.fecha_registro).toLocaleDateString()}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex items-center justify-end gap-3">
-                                                            {persona.estado_nombre === 'Pendiente' && (
-                                                                <button className="text-green-600 hover:text-green-700 p-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20" title="Validar">
-                                                                    <span className="material-symbols-outlined text-xl">check_circle</span>
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => window.location.hash = `personas/${persona.persona_id}`} className="text-primary hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Ver Detalle">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <button 
+                                                                onClick={() => { setPersonaToEdit(persona); setEditModalOpen(true); }} 
+                                                                className="text-gray-400 hover:text-blue-600 transition-colors p-1" 
+                                                                title="Editar Datos"
+                                                            >
+                                                                <span className="material-symbols-outlined text-xl">edit</span>
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => handleToggleStatus(persona)} 
+                                                                className={`transition-colors p-1 ${persona.estado_nombre === 'Activo' ? 'text-gray-400 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`} 
+                                                                title={persona.estado_nombre === 'Activo' ? 'Inactivar' : 'Activar'}
+                                                            >
+                                                                <span className="material-symbols-outlined text-xl">
+                                                                    {persona.estado_nombre === 'Activo' ? 'block' : 'check_circle'}
+                                                                </span>
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => setSelectedPersonaId(persona.persona_id)} 
+                                                                className="text-gray-400 hover:text-primary transition-colors p-1" 
+                                                                title="Ver Perfil"
+                                                            >
                                                                 <span className="material-symbols-outlined text-xl">visibility</span>
                                                             </button>
-                                                            <button className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" title="Más opciones">
-                                                                <span className="material-symbols-outlined text-xl">more_vert</span>
-                                                            </button>
+
+                                                            {isSuperAdmin && (
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); setPersonaToDelete(persona); setDeleteModalOpen(true); }} 
+                                                                    className="text-gray-400 hover:text-red-600 transition-colors p-1" 
+                                                                    title="Eliminar Permanente"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-xl">delete</span>
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -427,12 +586,6 @@ const Personas = () => {
                                 <p className="text-xs text-gray-500">ID: #{personaDetalle.persona.persona_id.substring(0, 8)}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                                {!personaDetalle.persona.is_lider && (
-                                    <button onClick={() => setConversionModalOpen(true)} className="hidden md:flex items-center gap-2 bg-primary hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-sm">
-                                        <span className="material-symbols-outlined text-[16px]">stars</span>
-                                        <span>Convertir a Líder</span>
-                                    </button>
-                                )}
                                 <button onClick={() => setSelectedPersonaId(null)} className="text-gray-400 hover:text-gray-600 transition-colors ml-2">
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
@@ -489,9 +642,6 @@ const Personas = () => {
                                         <p className="font-bold text-gray-900 dark:text-white">{personaDetalle.asignacion_activa?.lider_nombre || 'Sin asignar'}</p>
                                         {personaDetalle.asignacion_activa && <p className="text-xs text-gray-500">Desde: {new Date(personaDetalle.asignacion_activa.fecha_asignacion).toLocaleDateString()}</p>}
                                     </div>
-                                    <button className="text-gray-400 hover:text-primary">
-                                        <span className="material-symbols-outlined">edit</span>
-                                    </button>
                                 </div>
                             </div>
 
@@ -518,33 +668,17 @@ const Personas = () => {
                                     <span className="material-symbols-outlined text-base">notes</span>
                                     Notas
                                 </h4>
-                                <textarea className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-card-dark text-sm focus:border-primary focus:ring-primary h-24 resize-none" placeholder="Agregar una nota interna..." defaultValue={personaDetalle.persona.notas || ''}></textarea>
-                                <button className="mt-2 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded transition-colors font-medium">
-                                    Guardar Nota
-                                </button>
+                                <div className="p-3 bg-gray-50 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-700 min-h-[80px]">
+                                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap italic">
+                                        {personaDetalle.persona.notas || 'No hay notas registradas para esta persona.'}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
-                            <button className="flex-1 bg-white dark:bg-card-dark border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                Editar Perfil
-                            </button>
-                            <button className="flex-1 bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors">
-                                Contactar
-                            </button>
                         </div>
                     </div>
                 ) : null}
             </div>
 
-            {/* Mobile Convert Button within Drawer */}
-            {personaDetalle && !personaDetalle.persona.is_lider && selectedPersonaId && (
-                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-card-dark/80 backdrop-blur-md border-t border-gray-200 dark:border-gray-700 z-50">
-                    <button onClick={() => setConversionModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-blue-500/25 transition-all">
-                        <span className="material-symbols-outlined text-xl">stars</span>
-                        <span>Convertir en Líder</span>
-                    </button>
-                </div>
-            )}
 
             {/* Conversion Modal */}
             {isConversionModalOpen && personaDetalle && (
@@ -669,23 +803,17 @@ const Personas = () => {
                             </div>
 
                             <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex flex-row-reverse gap-3 border-t border-gray-100 dark:border-gray-700">
-                                <button
-                                    onClick={() => setConfirmConvertOpen(true)}
-                                    disabled={isConverting || !convertSectorId || !nivelLiderId || !estadoLiderId}
-                                    className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
-                                >
-                                    {isConverting ? (
-                                        <>
-                                            <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Guardando...
-                                        </>
-                                    ) : (
-                                        "Confirmar y Convertir"
-                                    )}
-                                </button>
+                                    <button
+                                        onClick={() => setConfirmConvertOpen(true)}
+                                        disabled={isConverting || !convertSectorId || !nivelLiderId || !estadoLiderId}
+                                        className="flex w-full justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-bold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 sm:w-auto disabled:opacity-50 transition-colors items-center gap-2"
+                                    >
+                                        {isConverting ? (
+                                            <><span className="material-symbols-outlined animate-spin text-sm">progress_activity</span><span>Convirtiendo...</span></>
+                                        ) : (
+                                            "Confirmar y Convertir"
+                                        )}
+                                    </button>
                                 <button
                                     onClick={() => setConversionModalOpen(false)}
                                     disabled={isConverting}
@@ -708,6 +836,140 @@ const Personas = () => {
                 onConfirm={() => { setConfirmConvertOpen(false); handleConvertToLider(); }}
                 onCancel={() => setConfirmConvertOpen(false)}
             />
+            <ConfirmModal
+                open={deleteModalOpen}
+                title="Eliminar Registro Permanentemente"
+                message={`¿Estás seguro de que deseas eliminar permanentemente a ${personaToDelete?.nombres} ${personaToDelete?.apellidos}? Esta acción borrará también su usuario, líder y asignaciones. NO se puede deshacer.`}
+                confirmLabel={isDeleting ? "Eliminando..." : "Eliminar Permanentemente"}
+                confirmColor="bg-red-600 hover:bg-red-700"
+                onConfirm={handleDeletePersona}
+                onCancel={() => setDeleteModalOpen(false)}
+                isLoading={isDeleting}
+            />
+
+            {editModalOpen && personaToEdit && (
+                <div className="fixed inset-0 z-[60] overflow-y-auto" role="dialog" aria-modal="true">
+                    <div className="flex items-center justify-center min-h-screen p-4">
+                        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" onClick={() => setEditModalOpen(false)}></div>
+                        <div className="relative bg-white dark:bg-card-dark rounded-xl shadow-2xl w-full max-w-lg p-6 overflow-hidden">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">edit</span>
+                                    Editar Persona
+                                </h3>
+                                <button onClick={() => setEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                            <form onSubmit={handleSaveEdit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombres</label>
+                                        <input type="text" name="nombres" defaultValue={personaToEdit.nombres} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" required />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellidos</label>
+                                        <input type="text" name="apellidos" defaultValue={personaToEdit.apellidos} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" required />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cédula</label>
+                                        <input type="text" name="cedula" defaultValue={personaToEdit.cedula || ''} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
+                                        <input type="text" name="telefono" defaultValue={personaToEdit.telefono} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" required />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                                    <input type="email" name="email" defaultValue={personaToEdit.email_contacto || ''} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mesa</label>
+                                    <input type="text" name="mesa" defaultValue={personaToEdit.mesa || ''} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-primary focus:border-primary" />
+                                </div>
+                                
+                                <div className="mt-6 flex gap-3">
+                                    <button type="button" onClick={() => setEditModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" disabled={isSavingEdit} className="flex-1 px-4 py-2 bg-primary hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                        {isSavingEdit && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                        {isSavingEdit ? 'Guardando...' : 'Guardar Cambios'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Global Notification Modal */}
+            {feedback && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={() => !feedback.showCancel && setFeedback(null)}></div>
+                    <div className="relative bg-white dark:bg-card-dark rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all animate-in zoom-in duration-200">
+                        <div className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center mb-4 ${
+                            feedback.type === 'success' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' :
+                            feedback.type === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-600' :
+                            feedback.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600' :
+                            'bg-blue-100 dark:bg-blue-900/30 text-blue-600'
+                        }`}>
+                            <span className="material-symbols-outlined text-3xl">
+                                {feedback.type === 'success' ? 'check_circle' :
+                                 feedback.type === 'error' ? 'error' :
+                                 feedback.type === 'warning' ? 'warning' : 'info'}
+                            </span>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{feedback.title}</h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-6">{feedback.message}</p>
+                        <div className="flex gap-3 justify-center">
+                            {feedback.showCancel && (
+                                <button onClick={() => setFeedback(null)} className="px-6 py-2 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                    Cancelar
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    if (feedback.onConfirm) {
+                                        feedback.onConfirm();
+                                    } else {
+                                        setFeedback(null);
+                                    }
+                                }} 
+                                disabled={feedback.loading}
+                                className={`px-6 py-2 rounded-xl text-white font-medium shadow-lg transition-all active:scale-95 flex items-center gap-2 ${
+                                    feedback.type === 'success' ? 'bg-green-600 hover:bg-green-700 shadow-green-500/20' :
+                                    feedback.type === 'error' ? 'bg-red-600 hover:bg-red-700 shadow-red-500/20' :
+                                    feedback.type === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20' :
+                                    'bg-primary hover:bg-blue-700 shadow-blue-500/20'
+                                } disabled:opacity-75`}
+                            >
+                                {feedback.loading && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                {feedback.showCancel ? (feedback.loading ? 'Cambiando...' : 'Confirmar') : 'Aceptar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Global Toast */}
+            {toast && (
+                <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-right duration-300">
+                    <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl shadow-xl backdrop-blur-md border ${
+                        toast.type === 'success' 
+                            ? 'bg-green-500/90 border-green-400 text-white' 
+                            : 'bg-red-500/90 border-red-400 text-white'
+                    }`}>
+                        <span className="material-symbols-outlined">
+                            {toast.type === 'success' ? 'check_circle' : 'error'}
+                        </span>
+                        <span className="font-medium">{toast.message}</span>
+                    </div>
+                </div>
+            )}
         </main>
     );
 };

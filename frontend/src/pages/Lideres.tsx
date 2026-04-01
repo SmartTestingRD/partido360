@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getLideresResumen, getSectores, getEstadosLider, getNivelesLider, updateLider, getLideresResumenExport, Sector, EstadoLider, NivelLider, LiderResumen } from '../api/apiService';
+import { getLideresResumen, getSectores, getEstadosLider, getNivelesLider, updateLider, deleteLider, getLideresResumenExport, Sector, EstadoLider, NivelLider, LiderResumen } from '../api/apiService';
 import CreateLiderModal from '../components/CreateLiderModal';
 import EditLiderModal, { EditLiderFormValues } from '../components/EditLiderModal';
 
@@ -50,6 +50,10 @@ const Lideres = () => {
         _rawUser?.rol_nombre || _rawUser?.data?.rol_nombre || _rawUser?.user?.rol_nombre || ''
     ).toUpperCase().replace(/[-_\s]/g, '');
     const currentLiderId: string | null = _rawUser?.lider_id || _rawUser?.data?.lider_id || _rawUser?.user?.lider_id || null;
+    const currentUserEmail: string = _rawUser?.email || _rawUser?.data?.email || _rawUser?.user?.email || '';
+    const currentCandidatoId: string = _rawUser?.candidato_id || _rawUser?.data?.candidato_id || _rawUser?.user?.candidato_id || '';
+    const SUPER_ADMIN_CAND_ID = '00000000-0000-0000-0000-000000000001';
+    const isSuperAdmin = currentCandidatoId === SUPER_ADMIN_CAND_ID || currentUserEmail === 'ejguerrero@smarttestingrd.com';
 
     /** ¿Puede el usuario logueado realizar acciones sobre este líder? */
     const canEdit = (lider: LiderResumen): boolean => {
@@ -102,6 +106,11 @@ const Lideres = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     // Modal — Confirm inactivation
     const [confirmPending, setConfirmPending] = useState<{ liderId: string; isActivo: boolean } | null>(null);
+
+    // Modal — Delete confirm (Solo Super Admin)
+    const [deleteConfirmLider, setDeleteConfirmLider] = useState<LiderResumen | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
 
     // Catalogs
@@ -182,12 +191,15 @@ const Lideres = () => {
         }
 
         try {
+            setIsTogglingStatus(true);
             await updateLider(liderId, { estado_lider_id: targetState.estado_lider_id });
             addToast(`Líder ${isActivo ? 'inactivado' : 'activado'} correctamente.`, 'success');
             fetchLideres();
         } catch (err) {
             console.error('Error updating leader status', err);
             addToast('Error al cambiar el estado del líder.', 'error');
+        } finally {
+            setIsTogglingStatus(false);
         }
     };
 
@@ -217,6 +229,22 @@ const Lideres = () => {
     };
 
 
+
+    const handleDeleteLider = async () => {
+        if (!deleteConfirmLider) return;
+        setIsDeleting(true);
+        try {
+            await deleteLider(deleteConfirmLider.lider_id);
+            addToast(`Líder "${deleteConfirmLider.nombre_completo}" eliminado correctamente.`, 'success');
+            setDeleteConfirmLider(null);
+            fetchLideres();
+        } catch (err) {
+            console.error('Error eliminando líder:', err);
+            addToast('Error al eliminar el líder.', 'error');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const handleClearFilters = () => {
         setSearch('');
@@ -396,11 +424,14 @@ const Lideres = () => {
                 {/* Table / Cards */}
                 <div className="bg-card-light dark:bg-card-dark rounded-xl shadow-soft border border-border-light dark:border-border-dark overflow-hidden">
                     {loading ? (
-                        <div className="p-10 flex justify-center items-center">
-                            <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                        <div className="flex-1 flex flex-col items-center justify-center py-20 px-4">
+                            <div className="relative">
+                                <div className="h-16 w-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary animate-pulse">social_leaderboard</span>
+                                </div>
+                            </div>
+                            <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 animate-pulse">Cargando líderes...</p>
                         </div>
                     ) : lideres.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 bg-card-light dark:bg-card-dark rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
@@ -602,6 +633,15 @@ const Lideres = () => {
                                                             </span>
                                                         </button>
                                                         )}
+                                                        {isSuperAdmin && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmLider(lider); }}
+                                                            className="text-gray-400 hover:text-red-600 transition-colors p-1"
+                                                            title="Eliminar Líder"
+                                                        >
+                                                            <span className="material-symbols-outlined text-xl">delete</span>
+                                                        </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -720,9 +760,11 @@ const Lideres = () => {
                             </button>
                             <button
                                 onClick={() => executeToggle(confirmPending.liderId, confirmPending.isActivo)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-500/25"
+                                disabled={isTogglingStatus}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-500/25 disabled:opacity-50 flex items-center gap-2"
                             >
-                                Sí, inactivar
+                                {isTogglingStatus && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                {isTogglingStatus ? 'Procesando...' : 'Sí, inactivar'}
                             </button>
                         </div>
                     </div>
@@ -736,6 +778,45 @@ const Lideres = () => {
                 onSuccess={fetchLideres}
                 addToast={addToast}
             />
+
+            {/* ── Modal: Confirmar Eliminación de Líder ── */}
+            {deleteConfirmLider && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-[#15202e] w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-scale-up">
+                        <div className="p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                                    <span className="material-symbols-outlined text-red-600 dark:text-red-400">delete_forever</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Eliminar Líder</h3>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">Esta acción es permanente e irreversible.</p>
+                                </div>
+                            </div>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                                ¿Estás seguro de que deseas <span className="font-semibold text-red-600 dark:text-red-400">eliminar permanentemente</span> al líder <span className="font-bold">"{deleteConfirmLider.nombre_completo}"</span>? Se eliminarán también su perfil de persona y usuario asociado.
+                            </p>
+                        </div>
+                        <div className="px-6 pb-6 flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmLider(null)}
+                                disabled={isDeleting}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDeleteLider}
+                                disabled={isDeleting}
+                                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors shadow-md shadow-red-500/25 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isDeleting && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
+                                Sí, eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );
