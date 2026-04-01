@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "description": "",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node src/server.js",
-    "build": "cd frontend && npm install && npm run build",
+    "build": "npm run build --prefix frontend",
     "dev": "nodemon src/server.js",
-    "deploy": "npm install && cd frontend && npm install && npm run build",
+    "deploy": "npm install && npm run build --prefix frontend",
     "predeploy": "node scripts/deploy-safe.js",
     "deploy:check": "node scripts/deploy-safe.js",
     "db:setup": "node scripts/setup-schema.js",
