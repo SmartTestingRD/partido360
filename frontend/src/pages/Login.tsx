@@ -137,7 +137,7 @@ const Login: React.FC = () => {
                     </form>
 
                     <div className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                        <p>© 2024 Partido360. Todos los derechos reservados.</p>
+                        <p>© 2026 Partido360. Todos los derechos reservados.</p>
                     </div>
                 </div>
             </div>
