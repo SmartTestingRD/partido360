@@ -1376,13 +1376,13 @@ router.get('/personas', authenticate, async (req, res, next) => {
         const total = parseInt(countResult.rows[0].count, 10);
 
         const dataQuery = `
-            SELECT 
+            SELECT
                 p.persona_id, p.nombres, p.apellidos, p.cedula, p.telefono, p.email AS email_contacto, p.mesa,
                 p.fecha_registro,
                 s.nombre AS sector_nombre,
                 l_p.nombres || ' ' || l_p.apellidos AS lider_nombre,
                 COALESCE(f.nombre, 'Sistema') AS fuente_nombre,
-                ep.nombre AS estado_nombre
+                ep.estado_persona_id, ep.nombre AS estado_nombre
             ${basePath}
             ORDER BY p.fecha_registro DESC
             LIMIT $${paramCount} OFFSET $${paramCount + 1}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, getEstadosPersona, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider } from '../api/apiService';
+import { getPersonas, getSectores, getLideres, getPersonaDetalle, getNivelesLider, getEstadosLider, getEstadosPersona, Persona, Sector, Lider, PersonaDetalle, NivelLider, EstadoLider, EstadoPersona } from '../api/apiService';
 import ConfirmModal from '../components/ConfirmModal';
 
 import { API_URL } from '../api/apiService';
@@ -26,6 +26,7 @@ const Personas = () => {
     const [lideres, setLideres] = useState<Lider[]>([]);
     const [nivelesLider, setNivelesLider] = useState<NivelLider[]>([]);
     const [estadosLider, setEstadosLider] = useState<EstadoLider[]>([]);
+    const [estadosPersona, setEstadosPersona] = useState<EstadoPersona[]>([]);
 
     // Drawer state
     const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null);
@@ -91,16 +92,18 @@ const Personas = () => {
         if (!localStorage.getItem('token')) return;
         const fetchCatalogos = async () => {
             try {
-                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData] = await Promise.all([
+                const [sectoresData, lideresData, nivelesLiderData, estadosLiderData, estadosPersonaData] = await Promise.all([
                     getSectores(),
                     getLideres(),
                     getNivelesLider(),
-                    getEstadosLider()
+                    getEstadosLider(),
+                    getEstadosPersona()
                 ]);
                 setSectores(sectoresData);
                 setLideres(lideresData);
                 setNivelesLider(nivelesLiderData);
                 setEstadosLider(estadosLiderData);
+                setEstadosPersona(estadosPersonaData);
                 if (nivelesLiderData.length > 0) setNivelLiderId(nivelesLiderData[0].nivel_lider_id);
                 if (estadosLiderData.length > 0) {
                     const activeState = estadosLiderData.find(e => e.nombre === 'Activo');
@@ -175,36 +178,36 @@ const Personas = () => {
         }
     };
 
-    const handleToggleStatus = async (persona: Persona) => {
-        const currentEstado = persona.estado_nombre || '';
-        const targetEstado = currentEstado.toLowerCase() === 'activo' ? 'Inactivo' : 'Activo';
-        
+    const handleToggleStatus = (persona: Persona) => {
+        const currentEstado = (persona.estado_nombre || '').toLowerCase();
+        const targetEstadoNombre = currentEstado === 'activo' ? 'Inactivo' : 'Activo';
+
+        // Buscar el UUID del estado destino desde el catálogo ya cargado (síncrono)
+        const targetStateObj = estadosPersona.find(
+            (e) => (e.nombre || '').toLowerCase() === targetEstadoNombre.toLowerCase()
+        );
+
+        if (!targetStateObj) {
+            showMessage('Error de Catálogo', `No se encontró el estado "${targetEstadoNombre}". Recarga la página.`, 'error');
+            return;
+        }
+
         askConfirm(
             'Confirmar Cambio de Estado',
-            `¿Estás seguro de que deseas cambiar el estado de ${persona.nombres} a ${targetEstado}?`,
+            `¿Cambiar el estado de ${persona.nombres} ${persona.apellidos} a "${targetEstadoNombre}"?`,
             async () => {
                 setFeedback(prev => prev ? { ...prev, loading: true } : null);
                 try {
-                    // Use the helper from apiService
-                    const estados = await getEstadosPersona();
-                    const targetStateObj = estados.find((e: any) => 
-                        (e.nombre || '').toLowerCase() === targetEstado.toLowerCase()
-                    );
-                    
-                    if (targetStateObj && targetStateObj.estado_persona_id) {
-                        const payload = { estado_persona_id: targetStateObj.estado_persona_id };
-                        
-                        await axios.put(`${API_URL}/personas/${persona.persona_id}`, payload);
-                        showToast(`Estado actualizado a ${targetEstado}`, 'success');
-                        fetchPersonasData();
-                    } else {
-                        console.error("Estado coincidente no encontrado:", { targetEstado, available: estados });
-                        showMessage('Error de Catálogo', `No se pudo encontrar el ID para el estado "${targetEstado}".`, 'error');
-                    }
+                    await axios.put(`${API_URL}/personas/${persona.persona_id}`, {
+                        estado_persona_id: targetStateObj.estado_persona_id
+                    });
+                    showToast(`Estado actualizado a ${targetEstadoNombre}`, 'success');
+                    fetchPersonasData();
                 } catch (err: any) {
-                    console.error("Error toggling status:", err);
-                    const errorMsg = err.response?.data?.message || 'No se pudo actualizar el estado. Verifica tu conexión.';
-                    showMessage('Error de Operación', errorMsg, 'error');
+                    console.error('[handleToggleStatus] error:', err);
+                    showToast(err.response?.data?.message || 'No se pudo actualizar el estado.', 'error');
+                } finally {
+                    setFeedback(null);
                 }
             }
         );

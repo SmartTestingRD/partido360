@@ -130,6 +130,7 @@ export interface Persona {
     sector_nombre: string | null;
     lider_nombre: string | null;
     fuente_nombre: string | null;
+    estado_persona_id: string | null;
     estado_nombre: string | null;
     fecha_registro: string;
     is_lider?: boolean;
