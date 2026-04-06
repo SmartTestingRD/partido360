@@ -21,6 +21,7 @@ const corsOptions = {
       'https://dev.political360.online',
       'https://political360.online',
       'https://www.political360.online',
+      'https://partido360-frontend.smarttesting.com.do',
       'http://localhost:5173',
       'http://localhost:3000',
     ];
