@@ -5,11 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
+    # Solo exponemos internamente para el proxy de Coolify
+    expose:
+      - "3001"
     environment:
       - NODE_ENV=production
-      # La DATABASE_URL debe pasarse a través de las variables de entorno en la interfaz de Coolify
       - PORT=3001
     restart: unless-stopped
 
@@ -17,8 +17,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
     restart: unless-stopped
