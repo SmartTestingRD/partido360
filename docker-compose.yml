@@ -1,24 +1,30 @@
 version: '3.8'
-
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    # Solo exponemos internamente para el proxy de Coolify
     expose:
-      - "3001"
+      - '3001'
     environment:
       - NODE_ENV=production
       - PORT=3001
     restart: unless-stopped
+    networks:
+      - default
+      - coolify
 
   frontend:
     build:
-      context: ./frontend
+      context: ../frontend
       dockerfile: Dockerfile
     expose:
-      - "80"
+      - '80'
     depends_on:
       - backend
     restart: unless-stopped
+
+networks:
+  default:
+  coolify:
+    external: true
