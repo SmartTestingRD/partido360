@@ -26,12 +26,13 @@ const corsOptions = {
       'http://localhost:3000',
     ];
 
-    // Permitir cualquier subdominio de vercel.app y political360.online
+    // Permitir cualquier subdominio de vercel.app, political360.online y smarttesting.com.do
     const allowedPatterns = [
       /\.vercel\.app$/,
       /\.netlify\.app$/,
       /\.political360\.online$/,
       /political360\.online$/,
+      /\.smarttesting\.com\.do$/,
     ];
 
     const isAllowed = allowedOrigins.includes(origin) ||

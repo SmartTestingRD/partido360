@@ -24,6 +24,7 @@ SET row_security = off;
 -- Name: partido360; Type: SCHEMA; Schema: -; Owner: postgres
 --
 
+CREATE SCHEMA partido360;
 
 
 ALTER SCHEMA partido360 OWNER TO postgres;
