@@ -24,6 +24,8 @@ const corsOptions = {
       'https://partido360-frontend.smarttesting.com.do',
       'http://localhost:5173',
       'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
     ];
 
     // Permitir cualquier subdominio de vercel.app, political360.online y smarttesting.com.do
@@ -33,6 +35,8 @@ const corsOptions = {
       /\.political360\.online$/,
       /political360\.online$/,
       /\.smarttesting\.com\.do$/,
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
     ];
 
     const isAllowed = allowedOrigins.includes(origin) ||
@@ -57,8 +61,16 @@ app.use(express.json());
 app.use('/api/auth', authRouter);
 app.use('/api', apiRoutes);
 
-
 app.use(errorHandler);
+
+// Manejo de errores globales para detectar por qué el proceso podría cerrarse
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception thrown:', err);
+});
 
 const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
 if (!isVercel) {
