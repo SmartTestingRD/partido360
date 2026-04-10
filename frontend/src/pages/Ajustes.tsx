@@ -250,6 +250,23 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
     const [resetting, setResetting] = useState(false);
     const [lastCreated, setLastCreated] = useState<{ login: string; password_temporal?: string } | null>(null);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [usuariosLista, setUsuariosLista] = useState<any[]>([]);
+    const [loadingUsuarios, setLoadingUsuarios] = useState(true);
+
+    const loadUsuarios = async () => {
+        setLoadingUsuarios(true);
+        try {
+            const r = await axios.get(`${API}/usuarios/lista`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setUsuariosLista(r.data.data || []);
+        } catch { toast('Error cargando lista de usuarios', 'error'); }
+        finally { setLoadingUsuarios(false); }
+    };
+
+    useEffect(() => {
+        loadUsuarios();
+    }, []);
 
     useEffect(() => {
         if (searchQ.trim().length < 2) { setSearchResults([]); return; }
@@ -294,6 +311,7 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
             toast('Usuario creado exitosamente ✓', 'success');
             setForm({ persona_id: '', email_login: '', username: '', rol_nombre: 'Coordinador', generar_password_temporal: true, password: '' });
             setSearchQ(''); setSearchResults([]);
+            loadUsuarios();
         } catch (e: any) {
             const msg = e.response?.data?.message || 'Error al crear usuario';
             toast(msg, 'error');
@@ -459,6 +477,64 @@ const TabUsuarios = ({ toast }: { toast: (m: string, t?: ToastType) => void }) =
                 </div>
             </Card>
             )}
+
+            {/* Lista de usuarios con acceso */}
+            <Card>
+                <SectionHeader icon="manage_accounts" title="Usuarios Activos" subtitle="Lista de usuarios con credenciales de acceso al sistema" />
+                <div className="overflow-x-auto -mx-px">
+                    {loadingUsuarios ? (
+                        <div className="p-10 flex justify-center"><Spinner /></div>
+                    ) : (
+                        <table className="min-w-[800px] w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                                <tr>
+                                    <th className="px-6 py-3 text-left">Nombre</th>
+                                    <th className="px-6 py-3 text-left">Login / Username</th>
+                                    <th className="px-6 py-3 text-left">Rol</th>
+                                    <th className="px-6 py-3 text-left">Pertenece a</th>
+                                    <th className="px-6 py-3 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {usuariosLista.map(u => (
+                                    <tr key={u.usuario_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                        <td className="px-6 py-3 text-gray-900 dark:text-white">
+                                            <div className="font-medium">{u.nombre_completo}</div>
+                                            <div className="text-xs text-gray-500">{u.cedula}</div>
+                                        </td>
+                                        <td className="px-6 py-3 text-gray-900 dark:text-white">
+                                            {u.email_login && <div>{u.email_login}</div>}
+                                            {u.username && <div className="text-xs text-gray-500">@{u.username}</div>}
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <span className="px-2.5 py-1 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800">
+                                                {u.rol_nombre}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-3 text-gray-600 dark:text-gray-400 text-sm">
+                                            {u.candidato || '—'}
+                                        </td>
+                                        <td className="px-6 py-3 text-center">
+                                            {u.activo ? (
+                                                <span className="px-2 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded text-xs font-semibold">Activo</span>
+                                            ) : (
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded text-xs font-semibold">Inactivo</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {usuariosLista.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                            No hay usuarios registrados
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </Card>
         </div>
     );
 };

@@ -1,12 +1,11 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
-// Configuración recomendada para Neon DB usando pool
+// Configuración del pool: Usamos SSL solo si es Neon DB (contiene neon.tech en la URL)
+const isNeon = process.env.DATABASE_URL?.includes('neon.tech');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: isNeon ? { rejectUnauthorized: false } : false
 });
 
 // ── Schema dedicado ──────────────────────────────────────────────────────────
@@ -17,19 +16,24 @@ pool.on('connect', (client) => {
   client.query('SET search_path TO partido360, public');
 });
 
+// Manejar errores inesperados en clientes ociosos
+pool.on('error', (err, client) => {
+  console.error('❌ Error inesperado en el pool de conexiones:', err.message);
+});
+
 // Función utilitaria para probar que la conexión funciona
 const testConnection = async () => {
   try {
     const client = await pool.connect();
-    console.log("✅ Conexión a la base de datos Neon (PostgreSQL) establecida correctamente.");
+    console.log("✅ Conexión a la base de datos establecida correctamente.");
 
     // Verificar schema
     const spRes = await client.query('SHOW search_path');
-    console.log("📂 Schema:", spRes.rows[0].search_path);
+    console.log("📂 Schema actual:", spRes.rows[0].search_path);
 
     // Opcional: mostrar la versión de postgres
     const res = await client.query('SELECT version()');
-    console.log("ℹ️ Versión:", res.rows[0].version);
+    console.log("ℹ️ Versión PostgreSQL:", res.rows[0].version);
 
     // Verificar que las tablas de Partido360 existen
     const tablas = await client.query("SELECT COUNT(*) as c FROM pg_tables WHERE schemaname='partido360'");
@@ -37,7 +41,18 @@ const testConnection = async () => {
 
     client.release();
   } catch (error) {
-    console.error("❌ Error al conectar a la base de datos Neon:", error.message);
+    console.error("❌ ERROR CRÍTICO DE CONEXIÓN A DB:", error.message);
+    console.error("ℹ️ Detalles de la conexión:", {
+      host: process.env.PGHOST,
+      port: process.env.PGPORT,
+      database: process.env.PGDATABASE,
+      isNeon: isNeon,
+      urlSpecified: !!process.env.DATABASE_URL
+    });
+    
+    if (error.message.includes('ECONNREFUSED')) {
+      console.warn("⚠️  CONSEJO: Verifica que el puerto en DATABASE_URL sea correcto (comúnmente 5432 para Postgres).");
+    }
   }
 };
 
