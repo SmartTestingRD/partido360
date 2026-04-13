@@ -6,8 +6,8 @@ WORKDIR /app
 # Copiamos archivos de configuración del frontend
 COPY package*.json ./
 
-# Instalamos las dependencias
-RUN npm install
+# Instalamos todas las dependencias (incluyendo las de desarrollo para el build)
+RUN npm install --include=dev
 
 # Copiamos todos los archivos del código fuente del frontend
 COPY . .
