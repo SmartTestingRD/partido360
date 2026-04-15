@@ -10,7 +10,12 @@ services:
       - NODE_ENV=production
       - PORT=3001
     labels:
-      - "coolify.fqdn=https://${SERVICE_FQDN_BACKEND:-api.smarttesting.com.do}"
+      - "traefik.enable=true"
+      - "traefik.http.routers.p360-demo-be.rule=Host(`${SERVICE_FQDN_BACKEND:-api.smarttesting.com.do}`)"
+      - "traefik.http.routers.p360-demo-be.entrypoints=https"
+      - "traefik.http.routers.p360-demo-be.tls=true"
+      - "traefik.http.routers.p360-demo-be.tls.certresolver=letsencrypt"
+      - "traefik.http.services.p360-demo-be.loadbalancer.server.port=3001"
     restart: unless-stopped
     networks:
       - default
@@ -25,7 +30,12 @@ services:
     depends_on:
       - backend
     labels:
-      - "coolify.fqdn=https://${SERVICE_FQDN_FRONTEND:-app.smarttesting.com.do}"
+      - "traefik.enable=true"
+      - "traefik.http.routers.p360-demo-fe.rule=Host(`${SERVICE_FQDN_FRONTEND:-app.smarttesting.com.do}`)"
+      - "traefik.http.routers.p360-demo-fe.entrypoints=https"
+      - "traefik.http.routers.p360-demo-fe.tls=true"
+      - "traefik.http.routers.p360-demo-fe.tls.certresolver=letsencrypt"
+      - "traefik.http.services.p360-demo-fe.loadbalancer.server.port=80"
     restart: unless-stopped
 
 networks:
