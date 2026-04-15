@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const morgan = require('morgan');
 const apiRoutes = require('./routes/api');
@@ -64,10 +65,21 @@ app.use(express.json());
 app.use('/api/auth', authRouter);
 app.use('/api', apiRoutes);
 
-// Fallback paths for when reverse proxies (e.g. Traefik in Coolify) 
+// Fallback paths for when reverse proxies (e.g. Traefik in Coolify)
 // strip the `/api` prefix from the URL before it reaches Node.
 app.use('/auth', authRouter);
 app.use('/', apiRoutes);
+
+// Serve frontend static files in monolith (nixpacks) deploy mode
+const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendDist));
+app.get('*', (req, res, next) => {
+  // Only serve index.html for non-API requests (SPA fallback)
+  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
 
 app.use(errorHandler);
 

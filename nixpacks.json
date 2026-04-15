@@ -9,17 +9,17 @@
     },
     "install": {
       "cmds": [
-        "npm install",
-        "cd frontend && npm install"
+        "npm install --omit=dev",
+        "npm install --prefix frontend"
       ]
     },
     "build": {
       "cmds": [
-        "npm run build"
+        "VITE_API_URL=/api npm run build --prefix frontend"
       ]
     }
   },
   "start": {
-    "cmd": "npm start"
+    "cmd": "node src/server.js"
   }
 }
