@@ -74,6 +74,10 @@ process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception thrown:', err);
 });
 
+// Health check endpoints for Traefik or direct browser access
+app.get('/', (req, res) => res.json({ status: 'ok', environment: process.env.NODE_ENV, message: 'Backend is running' }));
+app.get('/api', (req, res) => res.json({ status: 'ok', environment: process.env.NODE_ENV, message: 'API is running' }));
+
 const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
 if (!isVercel) {
     app.listen(port, () => {
