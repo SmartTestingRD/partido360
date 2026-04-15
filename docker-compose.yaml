@@ -16,6 +16,7 @@ services:
       - "traefik.http.routers.p360-demo-be.tls=true"
       - "traefik.http.routers.p360-demo-be.tls.certresolver=letsencrypt"
       - "traefik.http.services.p360-demo-be.loadbalancer.server.port=3001"
+      - "traefik.docker.network=coolify"
     restart: unless-stopped
     networks:
       - default
@@ -36,6 +37,7 @@ services:
       - "traefik.http.routers.p360-demo-fe.tls=true"
       - "traefik.http.routers.p360-demo-fe.tls.certresolver=letsencrypt"
       - "traefik.http.services.p360-demo-fe.loadbalancer.server.port=80"
+      - "traefik.docker.network=coolify"
     restart: unless-stopped
 
 networks:
