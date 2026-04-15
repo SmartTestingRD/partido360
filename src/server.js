@@ -73,9 +73,8 @@ app.use('/', apiRoutes);
 // Serve frontend static files in monolith (nixpacks) deploy mode
 const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(frontendDist));
-app.get('*', (req, res, next) => {
-  // Only serve index.html for non-API requests (SPA fallback)
-  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
   res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
     if (err) next();
   });
