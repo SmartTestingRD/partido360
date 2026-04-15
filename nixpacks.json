@@ -3,8 +3,7 @@
   "phases": {
     "setup": {
       "nixPkgs": [
-        "nodejs_20",
-        "npm"
+        "nodejs_22"
       ]
     },
     "install": {
