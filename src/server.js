@@ -60,8 +60,14 @@ app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 
+// Main prefixed paths
 app.use('/api/auth', authRouter);
 app.use('/api', apiRoutes);
+
+// Fallback paths for when reverse proxies (e.g. Traefik in Coolify) 
+// strip the `/api` prefix from the URL before it reaches Node.
+app.use('/auth', authRouter);
+app.use('/', apiRoutes);
 
 app.use(errorHandler);
 
