@@ -70,6 +70,14 @@ app.use('/api', apiRoutes);
 app.use('/auth', authRouter);
 app.use('/', apiRoutes);
 
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'partido360-backend',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Serve frontend static files in monolith (nixpacks) deploy mode
 const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(frontendDist));
