@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const morgan = require('morgan');
 const apiRoutes = require('./routes/api');
@@ -60,8 +61,32 @@ app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 
+// Main prefixed paths
 app.use('/api/auth', authRouter);
 app.use('/api', apiRoutes);
+
+// Fallback paths for when reverse proxies (e.g. Traefik in Coolify)
+// strip the `/api` prefix from the URL before it reaches Node.
+app.use('/auth', authRouter);
+app.use('/', apiRoutes);
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'partido360-backend',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Serve frontend static files in monolith (nixpacks) deploy mode
+const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendDist));
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
 
 app.use(errorHandler);
 
@@ -73,6 +98,10 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (err) => {
     console.error('Uncaught Exception thrown:', err);
 });
+
+// Health check endpoints for Traefik or direct browser access
+app.get('/', (req, res) => res.json({ status: 'ok', environment: process.env.NODE_ENV, message: 'Backend is running' }));
+app.get('/api', (req, res) => res.json({ status: 'ok', environment: process.env.NODE_ENV, message: 'API is running' }));
 
 const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
 if (!isVercel) {

@@ -1,21 +1,19 @@
-[providers]
-  node = {}
+providers = ["node"]
+
+[variables]
+  NIXPACKS_NODE_VERSION = "20"
 
 [phases.setup]
-  # Usa la versión de Node definida en tu package.json (Node 20+)
-  nixPkgs = ["nodejs_20", "npm"]
+  nixPkgs = ["nodejs_20"]
 
 [phases.install]
-  # Instala las dependencias del backend y también las del frontend
   cmds = [
-    "npm install",
-    "cd frontend && npm install"
+    "npm ci --omit=dev || npm install --omit=dev",
+    "npm ci --prefix frontend || npm install --prefix frontend"
   ]
 
 [phases.build]
-  # Ejecuta el build, que según tu package.json hará el build del frontend
-  cmds = ["npm run build"]
+  cmds = ["npm run build --prefix frontend"]
 
 [start]
-  # Comando para iniciar la aplicación en producción
-  cmd = "npm start"
+  cmd = "node src/server.js"
